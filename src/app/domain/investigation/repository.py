@@ -229,7 +229,7 @@ class SqlAlchemyInvestigationRepository:
                 {
                     "investigation_id": investigation_id,
                     "seq": event.seq,
-                    "type": str(event.type),
+                    "type": event.type.value if hasattr(event.type, "value") else str(event.type),
                     "payload": event.payload,
                     "emitted_at": event.emitted_at,
                 }
@@ -255,10 +255,15 @@ class SqlAlchemyInvestigationRepository:
                     )
                 )
                 if existing.scalar_one_or_none() is None:
+                    type_str = (
+                        event.type.value
+                        if hasattr(event.type, "value")
+                        else str(event.type)
+                    )
                     rec = InvestigationEventRecord(
                         investigation_id=investigation_id,
                         seq=event.seq,
-                        type=str(event.type),
+                        type=type_str,
                         payload=event.payload,
                         emitted_at=event.emitted_at,
                     )

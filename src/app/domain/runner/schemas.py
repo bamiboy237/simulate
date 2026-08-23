@@ -6,7 +6,7 @@ reprs, or serialization dumps.
 """
 
 from datetime import datetime, timezone
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
@@ -71,7 +71,7 @@ class SandboxHandle(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class RunnerState(str, Enum):
+class RunnerState(StrEnum):
     """Operational lifecycle state of a runner sandbox."""
 
     pending = "pending"
@@ -95,7 +95,7 @@ class RunnerStatus(BaseModel):
     detail: dict[str, Any] = Field(default_factory=dict)
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     """Enumeration of event types emitted during an investigation."""
 
     investigation_started = "investigation_started"

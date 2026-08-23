@@ -120,11 +120,16 @@ class InMemoryInvestigationRepository:
         for event in events:
             if event.seq not in existing_seqs:
                 self._event_id_counter += 1
+                type_str = (
+                    event.type.value
+                    if hasattr(event.type, "value")
+                    else str(event.type)
+                )
                 rec = InvestigationEventRecord(
                     id=self._event_id_counter,
                     investigation_id=investigation_id,
                     seq=event.seq,
-                    type=str(event.type),
+                    type=type_str,
                     payload=event.payload,
                     emitted_at=event.emitted_at,
                 )
