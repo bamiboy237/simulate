@@ -8,7 +8,6 @@ import modal
 
 PYTHON_VERSION = "3.12"
 MODAL_IMAGE_VERSION = "1.0.0"
-PRIME_AGENT_VERSION = "0.2.0"
 
 
 def build_investigation_image() -> modal.Image:
