@@ -1,17 +1,12 @@
 # Reference Workflows
 
-Design documents and offline fixture data for realistic 2026 agentic
-workflows that the simulation lab can adopt as reference workflows. Each
-workflow is distinct from the existing customer-support workflow and from
-one another:
+This directory contains design documents and offline fixture modules for reference business workflows. These workflows provide test domains to validate the business world model compiler.
 
-| Workflow | Domain | Design document | Fixture module | Comparison variable |
-|---|---|---|---|---|
-| Returns Resolution Agent | E-commerce returns and refunds | `returns-resolution-agent.md` | `src/app/domain/reference_workflows/returns_resolution.py` | refund confirmation gate |
-| Onboarding Coordinator Agent | HR onboarding | `onboarding-coordinator-agent.md` | `src/app/domain/reference_workflows/onboarding.py` | checklist selection source |
-| Dispute Resolution Agent | Banking disputes | `dispute-resolution-agent.md` | `src/app/domain/reference_workflows/disputes.py` | evidence source minimum |
+| Workflow | Domain | Design Document | Fixture Module | Key Invariant / Gate |
+| --- | --- | --- | --- | --- |
+| **Returns Resolution Agent** | E-commerce returns and refunds | [`returns-resolution-agent.md`](file:///Users/king/Desktop/simulate/docs/reference_workflows/returns-resolution-agent.md) | [`src/app/domain/reference_workflows/returns_resolution.py`](file:///Users/king/Desktop/simulate/src/app/domain/reference_workflows/returns_resolution.py) | Refund confirmation gate |
+| **Onboarding Coordinator Agent** | Human resources onboarding | [`onboarding-coordinator-agent.md`](file:///Users/king/Desktop/simulate/docs/reference_workflows/onboarding-coordinator-agent.md) | [`src/app/domain/reference_workflows/onboarding.py`](file:///Users/king/Desktop/simulate/src/app/domain/reference_workflows/onboarding.py) | Checklist selection source |
+| **Dispute Resolution Agent** | Banking transaction disputes | [`dispute-resolution-agent.md`](file:///Users/king/Desktop/simulate/docs/reference_workflows/dispute-resolution-agent.md) | [`src/app/domain/reference_workflows/disputes.py`](file:///Users/king/Desktop/simulate/src/app/domain/reference_workflows/disputes.py) | Minimum evidence requirements |
 
-All fixture modules are self-contained (stdlib only), deterministic, and
-offline-runnable. No existing lab code was modified; the design documents
-describe how each workflow maps to the lab's evidence, scenario, and bundle
-contracts and which generalization points a future phase needs.
+All fixture modules use standard library Python, run deterministically, and execute offline without external network dependencies.
+

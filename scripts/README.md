@@ -1,13 +1,28 @@
-# User simulator
+# Operational and Development Scripts
 
-The persona simulator uses one generic command and grouped YAML catalogs; it no longer needs one launcher file per scenario.
+This directory contains utility scripts for database seeding and manual agent testing.
+
+## Available scripts
+
+### 1. Database seed (`scripts/seed.py`)
+
+Populates the configured PostgreSQL database with deterministic customer, order, policy, and ticket fixtures.
 
 ```bash
-uv run lab simulate list
-uv run lab simulate validate
-uv run lab simulate run <scenario-id> --yes
+uv run python scripts/seed.py
 ```
 
-Simulation choices come from `simulations/*.yaml`. Safe test database profiles come from `config/simulation-environments.yaml`; secret values stay in environment variables.
+### 2. Manual agent runner (`scripts/manual_agent.py`)
 
-The JSONL event log stores only allowlisted redacted fields. Use only `ENVIRONMENT=test` and a disposable database.
+Runs a single support agent turn against an in-memory repository using a live hosted model.
+
+```bash
+export MODEL_PROVIDER=openai
+export MODEL_NAME=gpt-5.6-luna
+export MODEL_API_KEY=<your-api-key>
+
+uv run python scripts/manual_agent.py order-status
+uv run python scripts/manual_agent.py refund
+uv run python scripts/manual_agent.py refund-confirmed
+```
+

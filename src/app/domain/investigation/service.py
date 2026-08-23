@@ -5,8 +5,6 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
-from tests.fakes.runners import FakeRunner
-
 from app.config import get_settings
 from app.domain.investigation.brief import render_task_brief
 from app.domain.investigation.errors import (
@@ -30,6 +28,7 @@ from app.domain.investigation.schemas import (
     InvestigationSummaryResponse,
 )
 from app.domain.runner.base import CloudRunner
+from app.domain.runner.fake import FakeRunner
 from app.domain.runner.modal_runner import ModalRunner
 from app.domain.runner.schemas import EventType, RunnerEvent, SandboxHandle, SandboxSpec
 
