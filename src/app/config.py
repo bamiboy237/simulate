@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     embedding_api_key: SecretStr | None = None
     embedding_base_url: str | None = None
     retrieval_corpus_version: str = "policy-v1"
+    modal_enabled: bool = False
+    modal_app_name: str = "simulate-mvp"
+    modal_timeout_s: int = 3600
+    control_plane_public_url: str | None = None
+    investigation_heartbeat_silence_s: int = 90
+    simulate_live_e2e: bool = False
 
     @field_validator("database_url", "database_url_unpooled", mode="before")
     @classmethod

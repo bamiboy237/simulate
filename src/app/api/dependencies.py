@@ -13,6 +13,8 @@ from app.domain.execution.errors import SandboxUnavailableError
 from app.domain.execution.service import ExecutionService
 from app.domain.failures.repository import SqlAlchemyFailureReviewRepository
 from app.domain.failures.service import FailureReviewService
+from app.domain.investigation.repository import SqlAlchemyInvestigationRepository
+from app.domain.investigation.service import InvestigationService
 from app.domain.regression.repository import SqlAlchemyRegressionCaseRepository
 from app.domain.regression.service import RegressionCaseService
 from app.domain.simulation.provisioner import postgres_provisioner_factory
@@ -90,3 +92,14 @@ def get_execution_service(
         service = _build_execution_service(settings)
         request.app.state.execution_service = service
     return service
+
+
+def get_investigation_service(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> InvestigationService:
+    """Build the investigation lifecycle and persistence service from a database session."""
+    return InvestigationService(
+        SqlAlchemyInvestigationRepository(session),
+        control_plane_url=settings.control_plane_public_url,
+    )

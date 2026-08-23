@@ -1,182 +1,125 @@
-# Simulate — Authoritative Build Roadmap
+# Simulate Build Roadmap
 
-Last updated: 2026-08-14
+Last updated: 2026-08-22
 
-## Current state
+## Current status
 
 - **Product:** Simulate
-- **Promise:** Continuously evaluate and improve agentic workflows.
-- **Completed:** Phases 0–7 are on `main` through merge commit `f31c438`.
-- **Next:** Phase 8 is approved for planning. It is not implemented.
-- **Source of truth:** This file owns product direction, phase scope, design rules,
-  accepted decisions, and future work. Do not create a parallel strategy or
-  roadmap document.
+- **Overview:** Creates isolated, resettable environments to test, investigate, and improve AI agents against realistic business workflows.
+- **Completed:** Phases 0–7 are merged to `main` (commit `f31c438`).
+- **In progress:** Phase 8 MVP (Modal cloud investigation runner).
+- **Source of truth:** This file defines product requirements, phase scopes, and architecture boundaries.
 
-Simulate helps a company find important behavior in production agent traces,
-turn that behavior into reviewed YAML scenarios, run controlled experiments in
-isolated cloud environments, and inspect reproducible results. Simulate reports
-evidence. It does not make the release decision.
+Simulate helps teams describe business processes, run controlled agent experiments in isolated environments, and inspect reproducible evidence. Production traces provide evidence to ground test scenarios. Simulate provides objective evaluation evidence; it does not make release decisions or host customer production agents.
 
-## Product doctrine
+## Core principles
 
-1. **Study behavior, not only failures.** A successful refund can still be
-   expensive, slow, or abnormal. Efficient successful behavior can also be
-   worth preserving.
-2. **Use production evidence to improve tests.** A trace is evidence. It is not
-   automatically a safe scenario, correct business state, or expected result.
-3. **Keep humans at the contract boundary.** Prime Agent can investigate,
-   explain, and draft scenarios. A person must approve the YAML before Simulate
-   publishes it or starts an experiment.
-4. **Run controlled experiments.** Baseline and candidate runs use the same
-   scenarios, starting state, fixtures, evaluators, and limits. Only declared
-   candidate variables can differ.
-5. **Measure stochastic systems as stochastic systems.** Repeat and interleave
-   runs. Show averages, spread, and individual iterations.
-6. **Return neutral evidence.** Report what changed and whether configured
-   limits were met. Do not recommend a deployment or hide the underlying runs.
-7. **Keep execution isolated and replaceable.** The control plane coordinates
-   work. Ephemeral runners execute it on Lab infrastructure or customer BYOVM
-   infrastructure.
-8. **Prefer one mechanism.** Put workflow-specific data in versioned contracts.
-   Do not create one execution path per workflow, provider, or interface.
-9. **Make safety configurable where the customer owns the risk.** Preserve safe
-   defaults, explicit contracts, audit records, short-lived credentials, and
-   outbound allowlists.
-10. **Build the core product first.** Do not add automatic deployment, broad
-    autonomy, a second web product, or complex organization roles to the MVP.
-11. **Test the evaluator, not only the workflow.** A passing evaluator is not
-    self-validating. Check it against known-good, no-op, incomplete, and
-    known-bad results before using it as experiment evidence.
+1. **Evaluate full behavior, not only failures:** Measure token usage, latency, tool calls, and state transitions on successful runs as well as failed runs.
+2. **Compile environments from declared rules:** Traces provide raw evidence. Human reviewers must verify business rules, expected outcomes, and technical bindings before scenarios become release gates.
+3. **Keep humans in control:** Agents investigate and propose changes. Human operators approve rules, scenarios, and production actions.
+4. **Run controlled experiments:** Baseline and candidate configurations execute against identical starting state, fixtures, and evaluators. Only declared candidate variables differ.
+5. **Measure stochastic variability:** Interleave and repeat test runs to capture averages, standard deviations, and individual iteration results.
+6. **Report objective evidence:** Present measurable metrics and pass/fail states without vague scores or automated deployment decisions.
+7. **Isolate execution:** The control plane coordinates workflows while disposable runners execute tests in isolated sandboxes.
+8. **Test evaluators against known baselines:** Validate evaluators against known-good, no-op, and known-bad runs before using them in experiments.
 
-## Core product loop
+## Core workflow
 
 ```text
-opt-in production traces
-  -> batch behavior discovery
-  -> behavior report and insight inbox
-  -> Prime Agent investigation and YAML drafts
-  -> human review and approval
-  -> versioned scenario or suite
-  -> isolated repeated experiment
-  -> neutral results and immutable evidence
-  -> team decision
+Business description or technical import
+  -> Versioned business world model
+  -> Human-reviewed rules and technical bindings
+  -> Compiled resettable environment
+  -> Isolated repeated experiment
+  -> Immutable results and evidence
+  -> Team decision
 ```
 
-The loop supports two starting points:
+Simulate supports four entry points:
 
-- **Production discovery:** find behavior that changed or deserves review.
-- **Planned change:** evaluate a prompt, model, tool, policy, retrieval, routing,
-  or workflow-code change before release.
+- **Business discovery:** Non-technical owners describe a workflow in natural language; Simulate drafts a structured world model.
+- **Technical import:** Engineering teams import existing workflow contracts, tools, and telemetry schemas.
+- **Production discovery:** Identify anomalous behaviors and regressions from production traces.
+- **Planned change:** Evaluate prompts, models, tools, or routing changes before release.
 
-## Canonical language
+## Terminology
 
-Use these terms in product copy, code added from Phase 8 onward, APIs, and docs.
-Do not rename stable code only for cosmetic consistency.
-
-| Term | Meaning |
+| Term | Definition |
 | --- | --- |
-| **Workflow** | A registered agentic system with trace matching rules, source code, dependencies, limits, and sandbox settings. |
-| **Behavior insight** | Evidence that a workflow behavior changed, violated a limit, or is worth preserving. It can contain successful and failed traces. |
-| **Scenario** | A human-approved YAML contract for one controlled situation. |
-| **Suite** | A saved set of versioned scenarios. |
-| **Experiment** | A baseline and one or more candidate configurations run against approved scenarios. |
-| **Iteration** | One execution of one configuration against one scenario. |
-| **Result** | The immutable measurements and evidence from an experiment. |
-| **Prime Agent** | The investigation agent that reviews an insight, drafts YAML and a developer message, and acts only within an explicit approval boundary. |
-| **Runner** | An isolated process in an ephemeral VM that executes an experiment contract and uploads evidence. |
-| **Control plane** | The hosted service that stores product objects and coordinates discovery, approval, and experiments. |
-| **Execution plane** | Lab-managed or customer-managed compute that runs discovery jobs and experiments. |
+| **Business world model** | Versioned specification of actors, state schemas, tools, rules, policies, and technical bindings for a business process. |
+| **Workflow** | Registered agent system running in a business world model, including source repository, limits, and sandbox settings. |
+| **World Discovery** | Guided natural-language workflow that drafts a business world model and highlights missing business rules. |
+| **Technical binding** | Reviewed connection between a world model and an endpoint, tool schema, mock service, or data source. |
+| **Behavior insight** | Evidence that an agent behavior changed, violated a limit, or requires review. |
+| **Scenario** | Human-approved test case defining initial state, inputs, allowed tools, and expected outcomes. |
+| **Suite** | Named collection of versioned scenarios. |
+| **Experiment** | Comparison run testing a baseline configuration against one or more candidate configurations across scenarios. |
+| **Iteration** | Single execution of one configuration against one scenario. |
+| **Result** | Immutable measurements and evidence generated by an experiment. |
+| **User Agent** | Hosted agent that simulates customer behavior based on a defined persona and user-side tools. |
+| **Scenario Agent** | The target agent under test, provided with scenario context and product-side tools. |
+| **Prime Agent** | Autonomous coding and investigation harness (developed by Prime Intellect) used to investigate failures. |
+| **Runner** | Isolated process in a disposable sandbox or VM that executes an experiment and streams evidence. |
+| **Control plane** | Always-on hosted service that stores data and coordinates discovery, approvals, and experiments. |
+| **Execution plane** | Ephemeral compute (Modal containers or VMs) that runs sandboxes and experiments. |
 
-Prefer **simulate** over **replay**. Use **reconstructed scenario** when a
-scenario is based closely on a trace. Avoid **failure cluster** as the product
-noun. Avoid **recommendation**, **ship**, and **do not ship** in result contracts.
-
-## Product shape
-
-### Users
-
-Simulate serves three overlapping users:
-
-- developers who change an agent workflow;
-- reliability and evaluation engineers who define evidence and experiments;
-- engineering leads who need to see material changes and their evidence.
-
-All project members are administrators in the MVP. Only administrators can
-approve and publish a scenario or approve an experiment. Add roles only after
-real customer evidence shows that one role is unsafe or unusable.
-
-### Object hierarchy
+## Object hierarchy
 
 ```text
 Organization
   -> Project
-    -> Workflow
-      -> Insight
-        -> Scenario or Suite
-          -> Experiment
-            -> Iteration
+    -> Business world model
+      -> Workflow
+        -> Insight
+          -> Scenario or Suite
+            -> Experiment
+              -> Iteration
 ```
-
-The hierarchy is for ownership and navigation. Provenance can cross it. For
-example, one experiment can reference several insights, and one insight can
-propose several scenarios.
-
-### Core navigation
-
-The product has four primary areas:
-
-1. **Insights** — behavior discovery reports and the insight inbox.
-2. **Scenarios** — reviewed YAML contracts and saved suites.
-3. **Experiments** — running and completed comparisons.
-4. **Admin** — workflows, trace sources, infrastructure, limits, data policy,
-   destinations, and retention.
-
-Do not add a primary navigation item until its backend behavior exists.
-
-### Project home
-
-The home view answers: **What are the three most important changes in agent
-behavior since I last checked?**
-
-It contains:
-
-- **Needs attention:** at most three actionable insights;
-- **Running:** active cloud experiments;
-- **Recent evidence:** completed experiments and resolved insights;
-- one-click access to all insights.
-
-Each insight summary answers:
-
-1. What changed?
-2. Why does it matter?
-3. What evidence supports it?
-4. What can the user do next?
-
-Do not show an unexplained AI score.
-
-### Insight lifecycle
-
-Use only these user-facing states:
-
-- New
-- Investigating
-- Testing
-- Resolved
-- Dismissed
-
-Draft generation and experiment execution are details within these states.
-Dismissal requires a reason. The MVP does not train a model from dismissals or
-human edits.
 
 ## Contracts and configuration
 
+### Business world model
+
+A single versioned business world model defines:
+
+- **Actors:** Roles, permissions, and visibility boundaries.
+- **State entities:** Schemas, relationships, and permitted state transitions.
+- **Tools and capabilities:** Allowed tools and service bindings for each actor.
+- **Rules and policies:** Business constraints and required approval gates.
+- **Evaluators and limits:** Deterministic assertions, token limits, latency budgets, and cost thresholds.
+- **Technical bindings:** Mode for each dependency (`mock`, `recorded`, `sandbox`, `staging`, or approved `production`).
+- **Field provenance:** Origin of each field (`observed`, `generated`, `imported`, or `human-approved`).
+
 ### Workflow registration
 
-Each workflow has:
+Each workflow belongs to one business world model and defines:
+
+- Stable identifier and display name.
+- Upstream trace sources and matching rules (such as LangSmith or OpenTelemetry).
+- Source repository, OCI image digest, or HTTP agent endpoint.
+- Tool schemas and service dependencies.
+- Limits on turns, tool calls, retries, latency, tokens, and cost.
+- Sandbox network and credential settings.
+ use each one;
+- business rules, policies, approvals, prohibited actions, and success
+  conditions;
+- scenario templates, evaluators, limits, and cleanup rules;
+- each technical binding and its mode: generated, recorded, sandbox, staging,
+  or explicitly approved production;
+- provenance for observed, imported, generated, validated, and human-approved
+  fields.
+
+World Discovery asks focused questions for missing rules rather than assuming
+them. It may generate a draft environment for exploration, but only a reviewed
+model with technical bindings can produce release-blocking evidence.
+
+### Workflow registration
+
+Each workflow belongs to one business world model and has:
 
 - stable identifier and display name;
 - trace source and matching rules;
-- source repository and entry point;
+- source repository and entry point, OCI image, or agent endpoint;
 - declared tools and dependencies;
 - configurable limits for outcomes, tool calls, retries, latency, tokens, and
   cost;
@@ -187,9 +130,9 @@ Each workflow has:
 The system must group traces within the declared workflow or task. Similar text
 alone must not group unrelated domains.
 
-### Scenario YAML
+### Scenario contract
 
-A published scenario records:
+A published scenario records its business world model version and:
 
 - schema version and stable scenario version;
 - origin: `reconstructed`, `designed_variant`, `designed_edge_case`, or
@@ -397,21 +340,85 @@ and `artifacts/audit/phase7-audit.*`.
 record reported 702 Docker tests, including 674 unit tests and 28 integration
 tests.
 
-# Phase 8 — Controlled experiment engine [NEXT — DO NOT BUILD YET]
+# Phase 8 — Business world compiler and controlled experiment engine [IN PROGRESS]
 
 ## Outcome
 
-Run a baseline and one or more candidate agent configurations across approved
-scenarios in isolated cloud environments, repeat each scenario enough to
-measure variability, and return reproducible evidence without making the
-release decision.
+Compile approved business world models into resettable environments, then run a
+baseline and one or more candidate agent configurations across approved
+scenarios. Repeat each scenario enough to measure variability and return
+reproducible evidence without making the release decision.
 
 The default experiment uses one selected scenario. A user can instead select
-related scenarios or a saved suite.
+related scenarios or a saved suite. The existing support system is the first
+reference world; it is not the product's domain boundary.
+
+## Phase 8 MVP — Modal investigation runner
+
+Build the smallest complete investigation loop before implementing the full
+world compiler or experiment engine:
+
+1. A team member selects a trace and starts an investigation manually.
+2. Simulate creates a detached Modal Sandbox from the support reference world,
+   booting only the environment slice the scenario needs.
+3. Prime Agent — the first investigation runtime, driven through its RPC
+   interface by an in-sandbox runner bridge — receives the scoped environment
+   and task, then writes progress events and a concise final summary. Its tool
+   surface is limited to Simulate's skill: trace.read, world.describe,
+   environment.status, scenario.run, state.inspect, state.diff, evidence.read,
+   proposal.create, summary.submit.
+4. The user can reconnect to the running investigation, view persisted events,
+   and chat with the agent in both directions while it works.
+5. Simulate stores the trace reference, environment version, agent identities
+   (investigator profile and tested-agent OCI digest), event history, chat
+   messages, and final summary.
+
+Modal is the first execution provider because it provides managed, detached
+cloud sandboxes with programmatic creation, reconnect, logs, shell access, and
+a monthly free-compute allowance. A Modal Sandbox is a managed cloud container,
+not a full VM; the tested agent runs as a process behind a World Gateway rather
+than as nested Docker. The implementation must keep a provider-neutral runner
+boundary so later work can support full lab-managed VMs and customer-provided
+VMs when multi-service worlds require them.
+
+The MVP does not automate alert intake, compile arbitrary business worlds, or
+run release-blocking baseline-versus-candidate experiments (including model
+swaps). Those remain the subsequent Phase 8 work below.
+
+**Acceptance:** from one selected support trace, a user can start a detached
+Modal investigation, disconnect and reconnect while it runs, view persisted
+progress, and receive a concise written summary.
+
+## Phase 8.0 — World discovery, model, and compiler
+
+- Add one versioned, domain-neutral business world model for actors, state,
+  capabilities, rules, policies, success conditions, scenario templates,
+  evaluators, and technical bindings.
+- Support two paths into the same model: guided natural-language World Discovery
+  for business owners, and structured import for technical teams with existing
+  systems.
+- Have World Discovery generate a plain-language map, structured draft, missing
+  questions, risk boundaries, and integration checklist. It must not invent
+  unmarked rules or publish the draft.
+- Classify every model field as observed from telemetry, imported, generated,
+  validated against a safe system, or human-approved.
+- Compile an approved model into an executable environment definition. Keep
+  environment execution, agent harness, session history, and hidden evaluator
+  evidence separate and replaceable.
+- Generalize the current support-specific scenario, state, resource, adapter,
+  event mapping, and runner assumptions through domain plugins. Migrate the
+  support reference world through the generic contract before adding another
+  domain.
+
+**Acceptance:** a business owner can create a reviewable world-model draft from
+plain language; a technical team can import the same model shape; and a reviewed
+support reference model compiles into the existing isolated environment without
+changing its observable behavior.
 
 ## Phase 8.1 — Experiment contract and vocabulary
 
-Define one versioned experiment contract with:
+Define one versioned experiment contract linked to an approved business world
+model with:
 
 - one baseline and one or more candidates;
 - baseline defaulting to the deployed configuration, with another saved version
@@ -419,6 +426,11 @@ Define one versioned experiment contract with:
 - candidate changes declared as model, prompt, retrieval, tools, policy,
   routing, workflow code, or a combination;
 - exact scenario versions and starting-state hashes;
+- workflow-plugin identity and version, including its declared actors, runtime
+  topology, User Agent tools, Scenario Agent tools, retrieval collections, and
+  technical bindings;
+- versioned User Agent context, behavior-profile cohort, and limits;
+- versioned Scenario Agent context and limits;
 - dependency, fixture, evaluator, and limit versions;
 - repetition count, interleaving policy, concurrency, duration, and budget;
 - a configurable ablation plan;
@@ -431,15 +443,56 @@ For a candidate with several declared changes, the default ablation plan runs
 each change alone and then the full candidate. A project can configure another
 plan.
 
+Each iteration has two isolated model boundaries:
+
+- The **User Agent** simulates the person interacting with the workflow. Its
+  context contains the person's reviewed behavior traits, plain-language goal,
+  facts the person knows, user-visible retrieval collections, its own
+  conversation history, and the user-side tools declared by the workflow.
+- The **Scenario Agent** is the product or business-workflow agent under test.
+  Its context contains the scenario request, authorized business knowledge,
+  its own conversation history, and the product-side tools declared by the
+  workflow.
+
+The two agents never share unrestricted histories, dependencies, retrieval
+collections, or toolsets. They exchange typed messages and references through
+the scenario engine. Hidden evaluator contracts, expected transitions,
+reference solutions, and release decisions remain outside both contexts.
+
+Every workflow plugin must implement the approved business world model's
+environment, actors, user-side and product-side tools, safe state projections,
+retrieval collections, Evaluators, and runtime-map nodes and edges. Executable
+code and secrets do not enter the model. After the built-in workflows migrate,
+reject a workflow that lacks this contract rather than guessing its topology or
+capabilities.
+
 **Acceptance:** invalid or undeclared differences fail before a VM starts. The
-same contract can be submitted through Python, API, CLI, and Textual.
+same contract can be submitted through Python, API, CLI, and Textual. Contract
+tests prove that neither agent can resolve the other agent's history, private
+retrieval collections, dependencies, or tools.
 
 ## Phase 8.2 — Immutable candidate and environment identity
 
 - Accept either Git repository plus commit or an OCI image digest.
 - If given Git identity, build the image and record its content digest.
-- Record runtime, model, prompt, tool, policy, retrieval, fixture, scenario, and
-  evaluator versions.
+- Record runtime, agent SDK, model, prompt, behavior profile, tool, policy,
+  retrieval collection, fixture, workflow plugin, scenario, and evaluator
+  versions.
+- Persist User Agent and Scenario Agent message histories separately. Use the
+  SDK's typed message serialization rather than rebuilding a complete plain-text
+  transcript for each turn.
+- Retain the audit history under the approved privacy policy, but build bounded
+  model context separately. Treat compacted summaries as versioned derived
+  artifacts linked to their source messages, never as authoritative state.
+- Keep histories in an encrypted, server-owned store with explicit retention
+  and redaction. Do not place unrestricted messages in the event stream or
+  immutable result, and never trust client-supplied history, tool results, or
+  approvals as authorization evidence.
+- Before accepting a behavior profile, review the configured User Agent model's
+  current documentation and run a live benchmark for structured output, tool
+  use, multi-turn consistency, context reduction, conflicting claims, and
+  declared limits. Start with the current reviewed model rather than surveying
+  providers.
 - Reject mutable image tags as the final executed identity.
 
 **Acceptance:** a completed iteration can identify the exact code and data it
@@ -462,20 +515,37 @@ operational failure with no partial result.
 
 ## Phase 8.4 — Isolated state and dependency modes
 
-- Start each experiment from the approved synthetic or sanitized state.
+- Start each experiment from the approved synthetic or sanitized state compiled
+  from the business world model.
 - Capture all state changes as evidence.
-- Enforce the scenario's tool, dependency, network, and credential contract.
-- Support recorded, disposable sandbox, staging, and explicitly approved
-  production dependency modes.
+- Give both agents different typed contexts and toolsets over the same isolated
+  environment. The User Agent may inspect or act through every user-side tool
+  the workflow makes available, such as an account, inbox, order history, bank,
+  or flight wallet. It receives no privileged success signal.
+- Attribute every tool call and state change to the User Agent, Scenario Agent,
+  environment, or declared external event. A User Agent action cannot satisfy a
+  requirement assigned to the Scenario Agent merely because final state
+  matches.
+- Enforce each actor's tool, dependency, network, credential, authorization,
+  action, and cleanup contract.
+- Support generated draft, recorded, disposable sandbox, staging, and explicitly
+  approved production dependency modes. Generated draft worlds are exploratory
+  only and cannot provide release-blocking evidence.
 - Destroy or clean the VM before reuse.
 
-**Acceptance:** tests prove isolation between experiments, outbound denial for
-undeclared hosts, credential expiry, and cleanup after success, failure, and
-cancellation.
+**Acceptance:** tests prove isolation between experiments, shared state without
+actor confusion, outbound denial for undeclared hosts, credential expiry, and
+cleanup after success, failure, and cancellation. A deceptive User Agent claim
+cannot override observed state, and an action performed by one actor cannot be
+credited to another.
 
 ## Phase 8.5 — Repeated and interleaved execution
 
 - Repeat every baseline and candidate scenario a configurable number of times.
+- Run the same reviewed, versioned behavior-profile cohort against baseline and
+  candidates. Profiles constrain observable traits such as patience, trust,
+  persistence, expertise, disclosure, truthfulness, and confirmation behavior
+  without prescribing exact utterances.
 - Interleave baseline and candidate iterations to reduce time-order bias.
 - Preserve each individual iteration.
 - Apply the configured ablation plan.
@@ -483,7 +553,9 @@ cancellation.
   plus infrastructure cost.
 
 **Acceptance:** execution order is reproducible from the contract, budget limits
-stop new iterations, and every scheduled iteration has one final status.
+stop new iterations, and every scheduled iteration has one final status. The
+User Agent may decide when to leave, but turn, token, tool-call, duration, and
+cost limits always bound the interaction.
 
 ## Phase 8.6 — Evaluation and statistics
 
@@ -493,6 +565,13 @@ Support both evaluator classes:
   errors, and declared limits;
 - versioned model-based checks where deterministic checks cannot express the
   quality judgment.
+
+Evaluate authoritative environment outcome and the User Agent's observed or
+claimed outcome separately, then derive one visible Result without discarding
+either measurement. Preserve outcomes such as completed and accepted,
+completed but disputed, false reassurance, failed, and abandoned. Deterministic
+state, authorization, and actor-attribution checks remain authoritative where
+code can express the requirement.
 
 Before an evaluator can contribute experiment evidence, validate it against a
 known-good result, a no-op result, and known incomplete or incorrect results.
@@ -523,6 +602,12 @@ Produce an immutable JSON result with:
 - per-scenario results;
 - every iteration and trace;
 - outcome and state changes;
+- authoritative environment outcome, User Agent outcome, and the derived Result;
+- User Agent and Scenario Agent identities, prompt versions, bounded context
+  configuration, message-history references, usage, and termination reasons;
+- actor-attributed user-side and product-side tool paths and state changes;
+- retrieval queries, collection and document versions, bounded chunk
+  identifiers, provenance, and citations passed to each agent;
 - tool paths and counts;
 - retries and errors;
 - latency, token, and cost measurements;
@@ -535,6 +620,14 @@ The result reports the experiment. It does not recommend what to do.
 Textual and immutable JSON are the required result surfaces. PR comments and CI
 summaries are optional consumers, not separate result contracts.
 
+Authoritative business state, retrievable business knowledge, conversation
+history, derived summaries, and hidden evaluator evidence are separate data
+classes. Retrieval augments an agent's permitted context; it never overrides
+environment state. Keep full private records and unrestricted retrieved text
+out of prompts, events, and traces by default. Pass retrieved content as
+untrusted data with stable provenance and citations, never as system
+instructions.
+
 ## Phase 8.8 — Textual experiment workspace
 
 Extend the existing full-screen Textual interface. Do not create a second
@@ -546,6 +639,16 @@ The workspace must:
 - survive local SSH disconnect and reconnect;
 - show experiment, scenario, candidate, ablation, and iteration progress;
 - show baseline and candidates side by side;
+- render a plugin-declared runtime schematic with separate User Agent and
+  Scenario Agent lanes, their tool paths, shared environment effects,
+  Evaluators, and Result;
+- move a marker continuously along the active declared edge from observed
+  start, completion, retry, approval, failure, and state-change events;
+- stay close to the latest event by compressing intermediate animation frames
+  during bursts without dropping events from the final timeline;
+- show safe live summaries only. Do not add a pause control or live evidence
+  inspection; unlock the complete timeline and evidence inspector after the
+  iteration completes or fails;
 - let the user drill from summary to scenario to iteration to trace;
 - show limits, variability, state changes, tool paths, errors, cost, and latency;
 - make operational failure distinct from evaluated behavior;
@@ -570,17 +673,28 @@ Phase 8 is complete only when:
 7. deterministic and model-based evaluators retain their versions and evidence;
 8. every active evaluator passes known-good, no-op, incomplete, and known-bad
    checks;
-9. Textual can reconnect and inspect the complete experiment;
-10. immutable JSON contains all required provenance and no recommendation field;
-11. Ruff, mypy, unit tests, integration tests, and an end-to-end cloud test
+9. every built-in workflow implements an approved business world model with both
+   agent contexts, actor-specific tools, retrieval boundaries, runtime topology,
+   technical bindings, and Evaluators;
+10. a repeated cohort preserves flexible User Agent interaction while making
+    baseline and candidate variability visible;
+11. persisted agent histories resume without crossing agent boundaries or
+    duplicating an irreversible tool effect;
+12. User Agent tools observe the same environment as Scenario Agent tools, and
+    actor-attributed Evaluators reject false credit;
+13. Textual stays live during event bursts, reconnects, and unlocks complete
+    evidence after execution;
+14. immutable JSON contains all required provenance and no recommendation field;
+15. Ruff, mypy, unit tests, integration tests, and an end-to-end cloud test
     pass.
 
 # Phase 9 — Behavior discovery and Prime Agent workflow
 
 ## Outcome
 
-Turn opt-in production traces into a dated behavior report, several reviewable
-scenario drafts, and an explicit path to a Phase 8 experiment.
+Turn opt-in production traces into a dated behavior report, reviewable
+business-world-model extensions and scenario drafts, and an explicit path to a
+Phase 8 experiment.
 
 ## Trace intake
 
@@ -612,7 +726,7 @@ Each insight includes:
 - representative traces;
 - estimated impact;
 - grouping confidence, clearly not causal certainty;
-- several proposed YAML scenarios.
+- proposed world-model extensions and several proposed scenarios.
 
 Scenario drafts should cover a representative case, close variants, and useful
 edge cases. Every generated field must retain provenance to sanitized evidence
@@ -726,6 +840,10 @@ Each step shows its status, version, stable identifier, and backward links.
   production component library or behavior source of truth.
 - Use the [Paper MCP workflow](https://paper.design/docs/mcp) to inspect an
   accepted frame before implementation.
+- Use [Transitions.dev](https://transitions.dev/) as the motion reference for a
+  future web interface, not as a component library or a reason to animate every
+  state change. Adapt selected recipes to Simulate's interaction language and
+  project-owned motion tokens.
 - Keep Simulate's own identity. Do not copy Cloudflare or an observability
   vendor's brand.
 
@@ -796,6 +914,45 @@ web color values: black `#000000`, focus charcoal `#202020`, primary white
   progress, continuity, or a change of location.
 - Design narrow layouts as complete interfaces, not clipped desktop views.
   Remove secondary controls and decoration before removing evidence.
+
+### Motion language
+
+Transitions.dev demonstrates a useful system rather than a visual identity:
+small, self-contained transitions use one shared scale for duration, easing,
+distance, scale, and blur. Simulate should adopt that consistency and restraint,
+not copy the full catalog.
+
+- Use motion to preserve spatial continuity when a person opens evidence,
+  moves between a list and detail view, advances through ordered setup, or sees
+  an asynchronous action reach a new state.
+- Prefer the lowest-overhead matching pattern. Likely patterns are origin-aware
+  menus, restrained panel and disclosure reveals, list-to-detail page movement,
+  tab-indicator movement, skeleton-to-content reveals, and quiet toast entry.
+- Keep evidence stable while it is being read. Do not animate append-only
+  timeline rows, changing metrics, failures, or evaluator results merely to
+  attract attention. Never delay access to evidence until an animation ends.
+- Exclude celebratory, game-like, and ornamental effects such as confetti,
+  particle bursts, slot-machine counters, pointer tilt, glare, smoky dissolves,
+  looping shimmer, strong bounce, and error shaking. Status text, markers, and
+  focus treatment must carry meaning without motion.
+- Define a small project-owned token scale at implementation time. Start from
+  quick `150ms`, fast `250ms`, medium `350ms`, and slow `400ms` durations, with
+  a smooth deceleration curve for surfaces that open, close, or change
+  position. Match tokens by purpose, not by the nearest numeric value.
+- Open transitions may be slightly slower than close transitions. Tooltips and
+  transient controls should leave immediately. Avoid stagger when it would
+  postpone scanning a table, timeline, comparison, or error list.
+- Animate only `transform`, `opacity`, and, when necessary, a small blur. Do not
+  use `transition: all`; name each changing property and use `will-change`
+  sparingly.
+- Every animated behavior must honor `prefers-reduced-motion: reduce` with an
+  immediate state change and no movement, scale, or blur. The same content,
+  state, keyboard operation, focus destination, and ARIA state must remain
+  available when motion is off.
+- Before adopting a Transitions.dev recipe, inspect its current CSS and React
+  behavior, remove demo-specific styling, and verify reduced motion, keyboard
+  focus, interruption, repeated activation, narrow layouts, and lower-end
+  device performance.
 
 ### Interface copy
 
@@ -888,21 +1045,6 @@ choosing an orchestrator.
 **Why later:** This is an operations architecture change. It is not required to
 prove the single-experiment product loop.
 
-## Domain-neutral workflow contracts — Medium
-
-**Problem:** Reference domains still have parallel state, authorization, and
-fixture adapters.
-
-**Evidence:** The repository has several executable reference workflows and a
-generic simulator event/plugin seam. Inspect and SWE-bench also separate task
-data, execution, and scoring.
-
-**Direction:** Measure the stable overlap, then converge scenario, dependency,
-state-transition, and evaluator interfaces without erasing domain policy.
-
-**Why later:** A premature common model can weaken safety boundaries and make
-the code less readable.
-
 ## Automatic Prime Agent remediation — Low
 
 **Problem:** A mature system could investigate, simulate, patch, and validate a
@@ -964,7 +1106,11 @@ would slow the core workflow.
 terminal workspace.
 
 **Direction:** Apply the Kumo and Paper design system above to the same
-control-plane API after the terminal MVP is validated.
+control-plane API after the terminal MVP is validated. Begin with a read-only
+runtime viewer that consumes the Phase 8 workflow topology, actor-attributed
+events, retrieval provenance, and Result contracts. Show the User Agent and
+Scenario Agent in separate lanes with their own tools and context boundaries.
+Do not create another execution engine or add browser-only evidence semantics.
 
 **Why later:** A new web application would duplicate product-surface work before
 the experiment and discovery contracts stabilize.
@@ -979,6 +1125,9 @@ local patterns:
 | [Inspect](https://inspect.aisi.org.uk/) and [SWE-bench](https://www.swebench.com/) | Keep scenario data, execution, and evaluation separate. |
 | [OpenHands SDK](https://docs.openhands.dev/sdk/) | Separate the agent, workspace, event stream, and client UI. Rich and Textual consume the same events. |
 | [Playwright traces](https://playwright.dev/docs/trace-viewer) | Package inspectable evidence with a result instead of reporting an unsupported claim. |
+| [Pydantic AI message history](https://pydantic.dev/docs/ai/core-concepts/message-history/) and [toolsets](https://pydantic.dev/docs/ai/tools-toolsets/) | Give each agent a separate typed context, persisted server-owned history, and filtered toolset. Treat compacted summaries as derived context. |
+| [Pydantic AI RAG example](https://pydantic.dev/docs/ai/examples/data-analytics/rag/) | Retrieve bounded, versioned business knowledge through project-owned retrieval and citation contracts; do not treat model context as authoritative state. |
+| [Pydantic AI durable execution](https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/) | Use deferred model and tool boundaries where useful, but keep Simulate's control plane authoritative for leases, retries, approvals, idempotency, and cleanup. |
 | [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence) | Use persisted checkpoints and explicit human interrupts for controlled workflows. |
 | [LangSmith Insights](https://docs.langchain.com/langsmith/insights) | Discover usage patterns and agent behaviors, then inspect supporting traces and measurements. |
 | [LangSmith experiments](https://docs.langchain.com/langsmith/evaluation) and [comparison](https://docs.langchain.com/langsmith/compare-experiment-results) | Move traces into datasets and experiments; compare scenario results, traces, cost, and latency. |
@@ -999,6 +1148,12 @@ local patterns:
   for terminal presentation.
 - Keep one simulator event stream and plugin seam. Do not fork the execution
   engine for Rich, Textual, API, or future web clients.
+- Use separate Pydantic AI agents, typed dependencies, histories, and toolsets
+  for the User Agent and Scenario Agent. Coordinate them in Simulate domain
+  code; do not expose either agent as the other's unrestricted tool.
+- Keep authoritative environment state, retrievable knowledge, conversation
+  memory, derived summaries, and hidden evaluator evidence as separate data
+  classes.
 - Do not fork a full external agent runtime. Borrow stable boundaries and
   protocols.
 - Do not add Temporal or Hatchet before Phase 8 defines experiment states,

@@ -17,6 +17,7 @@ dependencies = [
     "rich>=15.0.0",
     "sqlalchemy[asyncio]>=2.0.51",
     "textual>=6.0,<7.0",
+    "modal>=1.5.4",
 ]
 
 [build-system]
@@ -44,6 +45,7 @@ dev = [
 [tool.ruff]
 src = ["src"]
 line-length = 100
+extend-exclude = [".agents", ".slim"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
