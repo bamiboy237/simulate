@@ -17,6 +17,7 @@ dependencies = [
     "rich>=15.0.0",
     "sqlalchemy[asyncio]>=2.0.51",
     "textual>=6.0,<7.0",
+    "modal>=1.5.4",
 ]
 
 [build-system]

@@ -1,6 +1,7 @@
 """This package defines cloud runner contracts, schemas, and interfaces."""
 
 from app.domain.runner.base import CloudRunner
+from app.domain.runner.modal_runner import ModalRunner
 from app.domain.runner.schemas import (
     AgentArtifactRef,
     ChatEnvelope,
@@ -20,6 +21,7 @@ __all__ = [
     "CloudRunner",
     "EnvironmentSliceRef",
     "EventType",
+    "ModalRunner",
     "ResourceLimits",
     "RunnerEvent",
     "RunnerState",

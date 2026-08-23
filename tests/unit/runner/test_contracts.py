@@ -247,11 +247,13 @@ def test_fake_runner_lifecycle_and_scripting() -> None:
     assert len(fake.terminated_sandboxes) == 0
 
 
-def test_no_modal_in_domain_runner() -> None:
-    """Verify no file in src/app/domain/runner/ imports modal."""
+def test_no_modal_in_domain_runner_except_client_wrapper() -> None:
+    """Verify modal SDK imports are strictly isolated to _modal_client.py."""
     runner_dir = Path(__file__).parents[3] / "src" / "app" / "domain" / "runner"
     assert runner_dir.exists()
     for py_file in runner_dir.glob("*.py"):
+        if py_file.name == "_modal_client.py":
+            continue
         content = py_file.read_text()
-        assert "import modal" not in content, f"{py_file.name} imports modal!"
-        assert "from modal" not in content, f"{py_file.name} imports from modal!"
+        assert "import modal" not in content, f"{py_file.name} directly imports modal!"
+        assert "from modal" not in content, f"{py_file.name} directly imports from modal!"
