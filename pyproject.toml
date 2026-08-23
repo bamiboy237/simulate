@@ -44,6 +44,7 @@ dev = [
 [tool.ruff]
 src = ["src"]
 line-length = 100
+extend-exclude = [".agents", ".slim"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
