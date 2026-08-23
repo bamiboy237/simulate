@@ -19,7 +19,10 @@ def build_investigation_image() -> modal.Image:
         .pip_install(
             "httpx>=0.28.1",
             "pydantic>=2.10.0",
+            "fastapi>=0.115.0",
+            f"prime-agent=={PRIME_AGENT_VERSION}",
         )
+        .env({"MODAL_IMAGE_VERSION": MODAL_IMAGE_VERSION})
     )
 
 
