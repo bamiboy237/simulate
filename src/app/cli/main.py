@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import Insert, insert
 
 from app.adapters.pydantic_ai_agent import ModelConfig
 from app.adapters.sources.fixture_source import FixtureTraceSource
+from app.cli.investigate import build_investigate_parser
 from app.cli.offline import (
     OFFLINE_CANDIDATE_MODEL_NAME,
     OFFLINE_MODEL_NAME,
@@ -1373,6 +1374,11 @@ def build_parser() -> argparse.ArgumentParser:
     ref_report = psub.add_parser("report", help="run all seven workflows and write the report")
     ref_report.add_argument("--out", help="report output directory")
     ref_report.set_defaults(func=cmd_reference_report)
+
+    p = sub.add_parser(
+        "investigate", help="cloud sandbox investigation operations"
+    )
+    build_investigate_parser(p)
 
     return parser
 

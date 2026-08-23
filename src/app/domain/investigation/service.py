@@ -3,9 +3,12 @@
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Any
 from uuid import UUID, uuid4
 
+from tests.fakes.runners import FakeRunner
+
+from app.config import get_settings
+from app.domain.investigation.brief import render_task_brief
 from app.domain.investigation.errors import (
     InvalidBridgeTokenError,
     InvalidStateTransitionError,
@@ -26,7 +29,9 @@ from app.domain.investigation.schemas import (
     InvestigationStatus,
     InvestigationSummaryResponse,
 )
-from app.domain.runner.schemas import EventType, RunnerEvent
+from app.domain.runner.base import CloudRunner
+from app.domain.runner.modal_runner import ModalRunner
+from app.domain.runner.schemas import EventType, RunnerEvent, SandboxHandle, SandboxSpec
 
 # Valid state machine transitions
 ALLOWED_TRANSITIONS: dict[InvestigationStatus, set[InvestigationStatus]] = {
@@ -59,8 +64,29 @@ def hash_token(token: str) -> str:
 class InvestigationService:
     """Owns investigation state machine, event intake, chat, and stale sweep."""
 
-    def __init__(self, repository: InvestigationRepository) -> None:
+    def __init__(
+        self,
+        repository: InvestigationRepository,
+        *,
+        runner: CloudRunner | None = None,
+        control_plane_url: str | None = None,
+    ) -> None:
         self._repository = repository
+        self._runner = runner or self._resolve_runner()
+        self._control_plane_url = control_plane_url
+        self._handles: dict[UUID, SandboxHandle] = {}
+
+    def _resolve_runner(self) -> CloudRunner:
+        try:
+            settings = get_settings()
+            if settings.modal_enabled:
+                return ModalRunner(
+                    app_name=settings.modal_app_name,
+                    default_timeout_s=settings.modal_timeout_s,
+                )
+        except Exception:
+            pass
+        return FakeRunner()
 
     async def start(
         self,
@@ -73,12 +99,9 @@ class InvestigationService:
         token = secrets.token_urlsafe(32)
         token_hash = hash_token(token)
 
-        world_name = request.world_ref.get("world_id", "unknown")
-        slice_name = request.slice_ref.slice_name
-        task_brief = request.task_brief or (
-            f"# Investigation Task Brief\n"
-            f"World: {world_name} | Slice: {slice_name}\n"
-            f"Please investigate the observed support failure and submit findings."
+        task_brief = request.task_brief or render_task_brief(
+            trace_id=str(request.trace_ref.get("trace_id", "trace")),
+            slice_ref=request.slice_ref,
         )
 
         tested_ref_dump = (
@@ -98,6 +121,32 @@ class InvestigationService:
             task_brief=task_brief,
             bridge_token_hash=token_hash,
         )
+
+        # Launch sandbox through the resolved runner
+        callback_url = self._control_plane_url or "http://127.0.0.1:8000"
+        spec = SandboxSpec(
+            spec_version="1.0.0",
+            task_brief=task_brief,
+            environment_slice=request.slice_ref,
+            investigator=request.investigator_ref,
+            tested_agent=request.tested_agent_ref,
+            env={"BRIDGE_TOKEN": token, **request.env},
+            secrets=request.secrets,
+            callback_base_url=callback_url,
+            resource_limits=request.resource_limits,
+        )
+
+        try:
+            handle = self._runner.create_sandbox(spec)
+            self._handles[inv_id] = handle
+        except Exception as exc:
+            await self._repository.update_status(
+                inv_id,
+                InvestigationStatus.FAILED.value,
+                error=f"Sandbox creation failed: {exc}",
+            )
+            record.status = InvestigationStatus.FAILED.value
+            record.error = f"Sandbox creation failed: {exc}"
 
         resp = InvestigationResponse(
             id=record.id,
@@ -141,6 +190,13 @@ class InvestigationService:
             started_at=started_at,
             finished_at=finished_at,
         )
+
+        # Terminate sandbox on terminal state transitions
+        if target_status in TERMINAL_STATUSES:
+            handle = self._handles.get(investigation_id)
+            if handle is not None:
+                self._runner.terminate(handle)
+
         if updated is None:
             raise InvestigationNotFoundError(investigation_id)
         return updated
@@ -218,40 +274,42 @@ class InvestigationService:
         record = await self.verify_bridge_token(token)
         current_status = InvestigationStatus(record.status)
         if current_status in TERMINAL_STATUSES:
-            # Events received after completion/cancellation are harmlessly dropped
             return 0
 
-        # Idempotent insert into PostgreSQL
+        if current_status == InvestigationStatus.PENDING:
+            await self.transition_status(record.id, InvestigationStatus.PROVISIONING)
+            await self.transition_status(record.id, InvestigationStatus.RUNNING)
+            record.status = InvestigationStatus.RUNNING.value
+            current_status = InvestigationStatus.RUNNING
+        elif current_status == InvestigationStatus.PROVISIONING:
+            await self.transition_status(record.id, InvestigationStatus.RUNNING)
+            record.status = InvestigationStatus.RUNNING.value
+            current_status = InvestigationStatus.RUNNING
+
+        now = datetime.now(timezone.utc)
         inserted = await self._repository.record_events(record.id, events)
 
-        # Inspect events for stateful transitions
-        now = datetime.now(timezone.utc)
+        # Check for summary or heartbeat in events
         for event in events:
             if event.type == EventType.heartbeat:
                 await self._repository.update_heartbeat(record.id, now)
             elif event.type == EventType.summary_submitted:
-                findings = str(event.payload.get("findings", "Investigation completed"))
-                next_step = str(event.payload.get("next_step", "None proposed"))
-                evidence_refs = event.payload.get("evidence_refs", [])
-                if isinstance(evidence_refs, list):
-                    refs_list: list[dict[str, Any]] = [
-                        r for r in evidence_refs if isinstance(r, dict)
-                    ]
-                else:
-                    refs_list = []
+                findings = str(event.payload.get("findings", "Investigation completed."))
+                next_step = str(event.payload.get("next_step", "Apply suggested fixes."))
+                evidence_refs = list(event.payload.get("evidence_refs", []))
                 await self._repository.save_summary(
                     record.id,
                     findings=findings,
                     next_step=next_step,
-                    evidence_refs=refs_list,
+                    evidence_refs=evidence_refs,
                 )
                 await self.transition_status(record.id, InvestigationStatus.COMPLETED)
-            elif event.type == EventType.error and current_status == InvestigationStatus.RUNNING:
-                error_msg = str(event.payload.get("error", "Harness encountered fatal error"))
+            elif event.type == EventType.error:
+                err_msg = str(event.payload.get("error", "Agent encountered unrecoverable error."))
                 await self.transition_status(
                     record.id,
                     InvestigationStatus.FAILED,
-                    error=error_msg,
+                    error=err_msg,
                 )
 
         return inserted
@@ -263,10 +321,7 @@ class InvestigationService:
         after_seq: int = 0,
         limit: int = 100,
     ) -> list[InvestigationEventRecord]:
-        """Fetch ordered events from persistence for streaming or replaying."""
-        record = await self._repository.get_by_id(investigation_id)
-        if record is None:
-            raise InvestigationNotFoundError(investigation_id)
+        """Fetch persisted events newer than sequence cursor for SSE replay and tailing."""
         return await self._repository.get_events(
             investigation_id,
             after_seq=after_seq,
@@ -324,7 +379,6 @@ class InvestigationService:
                 )
                 reconciled_ids.append(record.id)
             except Exception:
-                # If race occurred, skip
-                pass
+                continue
 
         return reconciled_ids

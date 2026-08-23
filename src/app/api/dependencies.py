@@ -96,6 +96,10 @@ def get_execution_service(
 
 def get_investigation_service(
     session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> InvestigationService:
     """Build the investigation lifecycle and persistence service from a database session."""
-    return InvestigationService(SqlAlchemyInvestigationRepository(session))
+    return InvestigationService(
+        SqlAlchemyInvestigationRepository(session),
+        control_plane_url=settings.control_plane_public_url,
+    )
