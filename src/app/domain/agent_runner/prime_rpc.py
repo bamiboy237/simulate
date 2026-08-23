@@ -5,16 +5,19 @@ and stdout line parsing into typed RunnerEvents.
 """
 
 import json
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 from app.domain.runner.schemas import EventType, RunnerEvent
 
 
-def format_rpc_command(mode: Literal["prompt", "steer", "follow_up"], body: str) -> str:
-    """Format a user chat message into a line-delimited Prime Agent RPC command."""
+def format_rpc_command(body: str) -> str:
+    """Format a user chat message into a line-delimited Prime Agent RPC input line.
+
+    As of v0.8.0, RPC delivery uses plain message content without mode/command keys on the wire.
+    Prompt vs steer vs follow_up queueing is handled entirely bridge-side.
+    """
     payload = {
-        "command": mode,
         "content": body,
     }
     return json.dumps(payload, separators=(",", ":")) + "\n"

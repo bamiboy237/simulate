@@ -79,12 +79,12 @@ class SandboxBridge:
         self,
         body: str,
         mode: Literal["prompt", "steer", "follow_up"],
-    ) -> str:
-        """Process chat message and produce formatted Prime Agent RPC command."""
+    ) -> tuple[Literal["prompt", "steer", "follow_up"], str]:
+        """Process chat message and produce effective mode and formatted RPC wire input."""
         effective_mode = self.translate_message_mode(mode)
         if effective_mode == "prompt":
             self.is_run_active = True
-        return format_rpc_command(effective_mode, body)
+        return effective_mode, format_rpc_command(body)
 
     def record_event(
         self,

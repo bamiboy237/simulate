@@ -20,8 +20,9 @@ def build_investigation_image() -> modal.Image:
             "httpx>=0.28.1",
             "pydantic>=2.10.0",
             "fastapi>=0.115.0",
-            f"prime-agent=={PRIME_AGENT_VERSION}",
         )
+        .run_commands("curl -fsSL https://app.primeintellect.ai/prime-agent/install.sh | sh")
+        .add_local_python_source("app")
         .env({"MODAL_IMAGE_VERSION": MODAL_IMAGE_VERSION})
     )
 

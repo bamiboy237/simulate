@@ -8,20 +8,13 @@ from app.domain.runner.schemas import EventType
 
 
 def test_format_rpc_command() -> None:
-    """Verify prompt, steer, and follow_up modes format to newline-delimited JSON."""
-    prompt_cmd = format_rpc_command("prompt", "Analyze checkout error")
-    assert prompt_cmd.endswith("\n")
-    data = json.loads(prompt_cmd.strip())
-    assert data["command"] == "prompt"
+    """Verify RPC commands format strictly as content payloads with no wire mode keys."""
+    cmd = format_rpc_command("Analyze checkout error")
+    assert cmd.endswith("\n")
+    data = json.loads(cmd.strip())
     assert data["content"] == "Analyze checkout error"
-
-    steer_cmd = format_rpc_command("steer", "Focus on order table")
-    steer_data = json.loads(steer_cmd.strip())
-    assert steer_data["command"] == "steer"
-
-    follow_up_cmd = format_rpc_command("follow_up", "What was the final status?")
-    follow_up_data = json.loads(follow_up_cmd.strip())
-    assert follow_up_data["command"] == "follow_up"
+    assert "command" not in data
+    assert "mode" not in data
 
 
 def test_parse_rpc_output_line_json_events() -> None:

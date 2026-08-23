@@ -1,5 +1,6 @@
 """Unit tests for SandboxBridge event batching, steer downgrade, and inbox polling."""
 
+import json
 from typing import Any
 from uuid import uuid4
 
@@ -19,18 +20,26 @@ def test_steer_downgrade_rule() -> None:
     )
     assert not bridge.is_run_active
 
-    # 1. When inactive, steer becomes follow_up
-    cmd1 = bridge.process_incoming_chat("Redirect focus", mode="steer")
-    assert '"command":"follow_up"' in cmd1
+    # 1. When inactive, steer becomes follow_up bridge-side, wire is plain content
+    mode1, wire1 = bridge.process_incoming_chat("Redirect focus", mode="steer")
+    assert mode1 == "follow_up"
+    data1 = json.loads(wire1.strip())
+    assert data1["content"] == "Redirect focus"
+    assert "command" not in data1
+    assert "mode" not in data1
 
     # 2. Prompt activates the run
-    cmd2 = bridge.process_incoming_chat("Start task", mode="prompt")
-    assert '"command":"prompt"' in cmd2
+    mode2, wire2 = bridge.process_incoming_chat("Start task", mode="prompt")
+    assert mode2 == "prompt"
     assert bridge.is_run_active
+    data2 = json.loads(wire2.strip())
+    assert data2["content"] == "Start task"
 
-    # 3. When active, steer remains steer
-    cmd3 = bridge.process_incoming_chat("Check refund table", mode="steer")
-    assert '"command":"steer"' in cmd3
+    # 3. When active, steer remains steer bridge-side
+    mode3, wire3 = bridge.process_incoming_chat("Check refund table", mode="steer")
+    assert mode3 == "steer"
+    data3 = json.loads(wire3.strip())
+    assert data3["content"] == "Check refund table"
 
 
 @pytest.mark.asyncio
@@ -41,8 +50,6 @@ async def test_bridge_event_batching_and_flush() -> None:
 
     async def mock_handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/internal/events":
-            import json
-
             data = json.loads(request.content.decode())
             received_batches.append(data)
             return httpx.Response(200, json={"ok": True})
@@ -84,8 +91,6 @@ async def test_bridge_summary_submitted_detection_and_exit() -> None:
 
     async def mock_handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/internal/events":
-            import json
-
             received_batches.append(json.loads(request.content.decode()))
             return httpx.Response(200, json={"ok": True})
         return httpx.Response(404)
