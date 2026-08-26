@@ -162,10 +162,5 @@ def regenerate_manifest() -> dict[str, object]:
     }
 
 
-def trace_label_map(dataset: FailureDataset | None = None) -> dict[str, TraceLabel]:
-    """Return labels keyed by canonical source trace ID."""
-    selected = dataset or load_failure_dataset()
-    return {item.trace_id: item for item in selected.manifest.labels}
-
-
 __all__ = ["DATASET_ID", "DATASET_VERSION", "load_failure_dataset", "regenerate_manifest"]
+

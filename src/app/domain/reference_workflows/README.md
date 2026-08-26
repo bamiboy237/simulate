@@ -1,76 +1,49 @@
 # Reference Workflows
 
-Three realistic 2026 agentic workflows for the agent simulation lab, designed
-as reference content alongside the existing customer-support workflow. Each
-subpackage contains one design document (`DESIGN.md`) and one deterministic,
-offline-runnable fixture module (`fixtures.py`). The reference workflows do
-not modify or import lab simulation code; a future lab phase can parameterize
-the evidence/scenario/bundle contracts from the mapped shapes documented in
-each design file.
+This package contains realistic reference workflows for the simulation platform. Each workflow defines a domain with state entities, tool contracts, baseline and candidate configurations, and deterministic offline fixture data.
+
+## Workflow catalog
+
+### Subpackage workflows
 
 | Workflow | Directory | Domain | Comparison variable |
 | --- | --- | --- | --- |
-| Incident-response on-call agent | `incident_response/` | SRE: runbook-driven alert handling, blast-radius guards, paging | runbook retrieval strategy (keyword vs semantic) |
-| CI failure triage agent | `ci_triage/` | Developer tooling: flaky vs regression classification, triage reports, fix branches | failure classifier model (gpt-4.1-mini vs gpt-5.2) |
-| Claim denial management agent | `claims_denial/` | Healthcare RCM: policy-grounded appeals, gap analysis, autonomy gates | appeal autonomy level (human-confirm vs auto-submit at score >= 0.8) |
+| Incident-response on-call agent | [`incident_response/`](file:///Users/king/Desktop/simulate/src/app/domain/reference_workflows/incident_response/) | SRE runbook alert handling and paging | Runbook retrieval strategy (keyword vs semantic) |
+| CI failure triage agent | [`ci_triage/`](file:///Users/king/Desktop/simulate/src/app/domain/reference_workflows/ci_triage/) | Flaky test classification and fix branches | Classifier model (gpt-4.1-mini vs gpt-5.2) |
+| Claim denial management agent | [`claims_denial/`](file:///Users/king/Desktop/simulate/src/app/domain/reference_workflows/claims_denial/) | Healthcare appeal drafting and policy grounding | Appeal autonomy level (human confirmation vs automatic submission) |
 
-## Design shared by all three
+### Flat fixture workflows
 
-- **Stateful system**: each workflow owns a small set of versioned records
-  (incidents/runbooks, PRs/check runs, claims/policies/appeals) with explicit
-  status machines. The lab seeds an ephemeral copy; nothing is shared.
-- **Tools split into safe and sensitive**: read-only tools are free;
-  state-changing and external-effect tools are gated, and the highest-risk
-  actions require a confirmation that lives in a trusted field the model
-  cannot set.
-- **One baseline/candidate variable per workflow**, run as the same scenario
-  twice (the lab's phase2-08 two-trace pattern): retrieval strategy, model,
-  or autonomy policy.
-- **Failure categories map to the lab's `SimulationCategory`**: retrieval
-  failure, infrastructure failure (one-time timeout with retry), policy
-  failure (guard/confirmation blocks), answer failure (misclassification).
+| Workflow | Module | Domain | Comparison variable |
+| --- | --- | --- | --- |
+| Returns resolution agent | [`returns_resolution.py`](file:///Users/king/Desktop/simulate/src/app/domain/reference_workflows/returns_resolution.py) | E-commerce returns and refunds | Refund confirmation gate |
+| HR onboarding coordinator | [`onboarding.py`](file:///Users/king/Desktop/simulate/src/app/domain/reference_workflows/onboarding.py) | Employee onboarding and compliance | Checklist selection source |
+| Banking dispute resolution | [`disputes.py`](file:///Users/king/Desktop/simulate/src/app/domain/reference_workflows/disputes.py) | Disputed transaction handling | Minimum required evidence sources |
 
-## Fixture data contract
+---
 
-Each `fixtures.py` module:
+## Shared architectural design
 
-- imports only the standard library and pydantic, so it loads in any offline
-  environment;
-- derives every identifier with `uuid5` from a per-workflow namespace, so
-  repeated imports produce identical data and identical content hashes;
-- exposes `WORKFLOW`, `WORKFLOW_VERSION`, `TOOLS`, `SAFE_TOOLS`,
-  `SENSITIVE_TOOLS`, `SCENARIOS`, `EVIDENCE_TRACE_IDS`, and
-  `compute_content_hash(scenario)`;
-- mirrors the lab contract shapes in workflow-local models: scenario
-  (`Scenario`), expected behavior (`ExpectedBehavior`), original production
-  behavior, dependency coverage, and a compact `TraceFacts` projection of
-  `TraceEvidence` (dependency calls, policy decisions, confirmation, retry
-  count, timing, tokens, cost).
+Every reference workflow adheres to these principles:
 
-## Verify offline
+- **Stateful system:** Each workflow defines versioned state records with explicit state machines. The simulation environment seeds an ephemeral in-memory copy for each run.
+- **Tool boundaries:** Tools are categorized as safe (read-only) or sensitive (write or external effects). Sensitive actions require explicit authorization or confirmation gates.
+- **Single comparison variable:** Experiments test exactly one declared configuration difference between baseline and candidate runs.
+- **Deterministic fixtures:** Modules use only standard library components and Pydantic. Repeated imports produce identical UUIDs and content hashes.
+
+---
+
+## Offline verification
+
+To verify that all reference workflow fixtures load and validate deterministically, run:
 
 ```bash
 uv run python -c "import app.domain.reference_workflows.incident_response.fixtures"
 uv run python -c "import app.domain.reference_workflows.ci_triage.fixtures"
 uv run python -c "import app.domain.reference_workflows.claims_denial.fixtures"
+uv run python -c "import app.domain.reference_workflows.returns_resolution"
+uv run python -c "import app.domain.reference_workflows.onboarding"
+uv run python -c "import app.domain.reference_workflows.disputes"
 ```
 
-Each import validates every scenario with pydantic and computes its content
-hash; identical imports always yield identical hashes.
-
-## Related reference workflows
-
-This directory is shared: other builders may contribute additional reference
-workflows as flat fixture modules (for example `returns_resolution.py`,
-`onboarding.py`, `disputes.py`) with design documents under
-`docs/reference_workflows/`. The package `__init__.py` stays docstring-only so
-every module remains importable.
-
-## Boundaries
-
-- These are reference designs and fixture data, not lab code: nothing in
-  `src/app/domain/simulation`, `evidence`, or `bundle` was changed.
-- Each workflow is bounded to one agent turn, offline-runnable, and free of
-  real external side effects (paging, PR comments, appeal submissions are all
-  simulated or recorded).
-- 2026 grounding and primary sources are cited in each `DESIGN.md`.
+Each import validates scenario definitions and calculates reproducible content hashes.

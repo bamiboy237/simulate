@@ -299,12 +299,3 @@ def resources_by_type(
         grouped.setdefault(seed.resource, []).extend(seed.records)
     return {resource: tuple(records) for resource, records in grouped.items()}
 
-
-def fixtures_by_dependency(
-    bundle: SimulationBundle,
-) -> dict[str, tuple[DependencyFixture, ...]]:
-    """This function returns dependency fixtures grouped by dependency."""
-    grouped: dict[str, list[DependencyFixture]] = {}
-    for fixture in bundle.dependency_fixtures:
-        grouped.setdefault(fixture.dependency, []).append(fixture)
-    return {dependency: tuple(fixtures) for dependency, fixtures in grouped.items()}

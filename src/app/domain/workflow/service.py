@@ -247,10 +247,7 @@ class WorkflowService:
         )
 
     async def inspect(self, workflow_id: str) -> WorkflowResponse:
-        try:
-            snapshot = await self._graph.aget_state(self._config(workflow_id))
-        except Exception as error:
-            raise WorkflowNotFound() from error
+        snapshot = await self._graph.aget_state(self._config(workflow_id))
         if not snapshot.values or "workflow_id" not in snapshot.values:
             raise WorkflowNotFound()
         self._check_not_expired(snapshot.values)

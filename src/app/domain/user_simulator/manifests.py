@@ -309,11 +309,6 @@ def load_simulation_catalog(
             continue
         seen_catalog_ids.add(catalog_file.catalog_id)
         for index, entry in enumerate(catalog_file.scenarios):
-            if not isinstance(entry, dict):
-                issues.append(
-                    CatalogIssue(path.name, f"scenarios[{index}]", "must be a mapping")
-                )
-                continue
             try:
                 scenario = Scenario.model_validate(
                     {**entry, "group": catalog_file.group}

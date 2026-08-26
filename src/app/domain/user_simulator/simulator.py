@@ -368,11 +368,11 @@ class PersonaConversation:
                 )
                 model_started = time.perf_counter()
                 result = await user.run(prompt, usage_limits=UsageLimits(request_limit=2))
-                self.usage.add(getattr(result, "usage", None))
+                self.usage.add(result.usage)
                 self._emit_model(
                     EventSource.PERSONA,
                     turn=turn,
-                    tokens=int(getattr(result.usage, "total_tokens", 0) or 0),
+                    tokens=result.usage.total_tokens if result.usage is not None else 0,
                     latency_ms=(time.perf_counter() - model_started) * 1000,
                 )
                 user_turn = result.output
@@ -390,11 +390,15 @@ class PersonaConversation:
                     confirmation_result = await user.run(
                         confirmation_prompt, usage_limits=UsageLimits(request_limit=2)
                     )
-                    self.usage.add(getattr(confirmation_result, "usage", None))
+                    self.usage.add(confirmation_result.usage)
                     self._emit_model(
                         EventSource.PERSONA,
                         turn=turn,
-                        tokens=int(getattr(confirmation_result.usage, "total_tokens", 0) or 0),
+                        tokens=(
+                            confirmation_result.usage.total_tokens
+                            if confirmation_result.usage is not None
+                            else 0
+                        ),
                         latency_ms=(time.perf_counter() - model_started) * 1000,
                     )
                     user_turn = confirmation_result.output
@@ -907,7 +911,7 @@ async def run_reference(
             )
         for _ in range(8):
             business_result = await choices.run(context, usage_limits=UsageLimits(request_limit=2))
-            usage_totals.add(getattr(business_result, "usage", None))
+            usage_totals.add(business_result.usage)
             choice = business_result.output
             if choice.end or choice.tool is None:
                 if required_done() and (not workflow.expectation.gate_required or confirmed):
@@ -1024,14 +1028,3 @@ async def run_reference(
         if conversation.last_report is not None:
             _emit_final_done(emitter, EventSource.REFERENCE, conversation.last_report)
 
-
-def run_reference_sync(persona: PersonaDefinition, **kwargs: object) -> ConversationResult:
-    return asyncio.run(
-        run_reference(
-            persona,
-            max_turns=cast(int, kwargs.get("max_turns", DEFAULT_MAX_TURNS)),
-            root=cast(Path, kwargs.get("root", Path("artifacts/user-simulator"))),
-            event_sink=cast("EventSink | None", kwargs.get("event_sink")),
-            tool_projector=cast("ToolProjector | None", kwargs.get("tool_projector")),
-        )
-    )

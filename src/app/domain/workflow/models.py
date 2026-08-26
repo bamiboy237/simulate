@@ -10,14 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.domain.agent.schemas import (
-    AnswerContext,
-    ReasonCode,
-    RouteIntent,
-    RoutingDecision,
-    SupportOutcome,
-    SupportResponse,
-)
+from app.domain.agent.schemas import RoutingDecision, SupportResponse
 from app.domain.support.schemas import OrderRead, PolicyDocumentRead
 
 WORKFLOW_VERSION = "4.1.0"
@@ -122,23 +115,3 @@ class WorkflowResponse(BaseModel):
     state: dict[str, object]
     interrupted: bool = False
 
-
-def route_to_response(
-    route: RoutingDecision,
-    message: str,
-    outcome: SupportOutcome,
-) -> SupportResponse:
-    """Build a safe typed response for graph nodes that do not use a model."""
-    return SupportResponse(
-        intent=route.intent,
-        outcome=outcome,
-        reason_code=(
-            ReasonCode.ORDER_STATUS_OK
-            if route.intent is RouteIntent.ORDER_STATUS
-            else ReasonCode.POLICY_ANSWER
-            if route.intent is RouteIntent.POLICY
-            else ReasonCode.ESCALATED
-        ),
-        message=message,
-        context=AnswerContext(routing=route),
-    )

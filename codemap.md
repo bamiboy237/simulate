@@ -1,5 +1,7 @@
 # Repository Atlas: Simulate
 
+> 🌐 **Interactive Walkthrough:** View the full interactive Notion-style codebase atlas and architecture flowcharts at [**docs/interactive_codemap.html**](file:///Users/king/Desktop/simulate/docs/interactive_codemap.html) (or [`codemap.html`](file:///Users/king/Desktop/simulate/codemap.html)).
+
 ## Project Responsibility
 Simulate is an agent evaluation and simulation platform for autonomous AI support workflows. It provides deterministic, reproducible sandbox environments, synthetic user simulation, privacy-safe bundle compilation, and cloud runner orchestration (Phase 8 MVP with Modal and Prime Agent RPC).
 

@@ -173,10 +173,6 @@ class SimulationAdapterRegistry:
         """This method returns the registered adapters in construction order."""
         return self._adapters
 
-    def adapter_for(self, tool_name: str) -> DependencyAdapter | None:
-        """This method returns the adapter that offers one tool, if any."""
-        return self._by_tool.get(tool_name)
-
     def coverage_items(self) -> tuple[CoverageItem, ...]:
         """This method describes every registered adapter."""
         return tuple(

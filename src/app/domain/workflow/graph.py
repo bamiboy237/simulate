@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, cast
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -103,7 +102,3 @@ def compile_support_graph(
     builder.add_edge("escalate", END)
     return cast(Any, builder.compile(checkpointer=checkpointer, name="support-workflow"))
 
-
-def workflow_transition_selector(state: SupportState) -> Callable[[], tuple[str, ...]]:
-    """Return the already-recorded transition node names for API inspection."""
-    return lambda: tuple(item.node for item in state.get("transcript", ()))

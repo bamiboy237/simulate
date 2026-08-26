@@ -1,7 +1,6 @@
 """Vendor-neutral contracts used by the retrieval pipeline."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
 from typing import Literal, Protocol
 from uuid import UUID
 
@@ -90,11 +89,3 @@ class Retriever(Protocol):
     async def search(self, query: str, limit: int = 5) -> list[RetrievalHit]:
         """Search the indexed corpus without exposing storage details."""
 
-
-@dataclass(frozen=True)
-class RetrievalCorpus:
-    """Metadata for a reproducible retrieval corpus."""
-
-    version: str
-    chunk_count: int
-    document_versions: tuple[str, ...] = ()

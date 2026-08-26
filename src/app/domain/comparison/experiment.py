@@ -138,9 +138,3 @@ def validate_baseline_matches_bundle(
             "the bundle; the baseline must be the deployed configuration"
         )
 
-
-def model_config_from_version(version: ConfigurationVersions) -> tuple[str, str]:
-    """This function returns the provider and name of one model version."""
-    if version.model_provider is None or version.model_name is None:
-        raise ExperimentError("a model change requires provider and name on both sides")
-    return version.model_provider, version.model_name

@@ -23,10 +23,10 @@ To cancel an active run, press `Ctrl-C`. The runner rolls back database transact
 The user simulator uses three configuration sources:
 
 1. **Scenario catalogs (`simulations/*.yaml`):** Define scenario metadata, initial user goals, default turn counts, and environment profiles.
-2. **Environment profiles (`config/simulation-environments.yaml`):** Map non-secret environment requirements, such as database port and test host.
+2. **Environment profiles (`config/simulation-environments.yaml`):** Map non-secret environment requirements, such as database ports and test hosts.
 3. **Flow plugins (`src/app/domain/user_simulator/plugins.py`):** Register the Python handlers that execute the workflow.
 
-Secret values (such as API keys) are resolved from local environment variables at runtime. They are never written to YAML files.
+Secret values (such as API keys) resolve from local environment variables at runtime. They are never written to YAML files.
 
 ---
 
@@ -37,7 +37,7 @@ Before allocating a run ID or starting execution, the simulator verifies that:
 - The requested plugin is registered in the plugin registry.
 - The environment variable `ENVIRONMENT=test` is set.
 - All required environment variables listed in the profile are set.
-- The target PostgreSQL database is reachable on loopback (`127.0.0.1`) and migrations are up to date.
+- The target PostgreSQL database is reachable on loopback (`127.0.0.1`) and database migrations are up to date.
 - The artifact output directory is writable.
 
 If any check fails, the CLI prints the missing requirement and stops execution.
@@ -46,16 +46,16 @@ If any check fails, the CLI prints the missing requirement and stops execution.
 
 ## Persisted data and privacy
 
-The simulator writes an append-only JSONL log and a final summary JSON report.
+The simulator writes an append-only JSONL log and a final summary JSON report:
 
 - **Saved data:** Turn numbers, selected tool names, outcomes, token usage, latency, retry counts, and final state diffs.
-- **Excluded data:** Conversation text and raw tool argument values are held in memory during the run and are never written to disk.
+- **Excluded data:** Conversation text and raw tool argument values remain in memory during the run and are never written to disk.
 
 ---
 
-## Example: Running a local simulation
+## Example: Run a local simulation
 
-To run a simulation against the local test database:
+To run a simulation against the local test database, set your environment variables and execute the scenario:
 
 ```bash
 export ENVIRONMENT=test
@@ -66,4 +66,3 @@ export MODEL_API_KEY=<your-model-api-key>
 
 uv run lab simulate run phase2-03-database-timeout --max-turns 8
 ```
-
