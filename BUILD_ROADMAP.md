@@ -1,16 +1,16 @@
 # Simulate Build Roadmap
 
-Last updated: 2026-08-22
+Last updated: 2026-08-26
 
 ## Current status
 
 - **Product:** Simulate
 - **Overview:** Creates isolated, resettable environments to test, investigate, and improve AI agents against realistic business workflows.
-- **Completed:** Phases 0–7 are merged to `main` (commit `f31c438`).
-- **In progress:** Phase 8 MVP (Modal cloud investigation runner).
+- **Completed:** Phases 0 to 7 are merged to `main` (commit `f31c438`). The Phase 8 MVP is merged to `main` (merge commit `7b3c01a`, August 23, 2026).
+- **Next:** Phase 8 sub-phases 8.0+ (world discovery and compiler, experiment contract and engine).
 - **Source of truth:** This file defines product requirements, phase scopes, and architecture boundaries.
 
-Simulate helps teams describe business processes, run controlled agent experiments in isolated environments, and inspect reproducible evidence. Production traces provide evidence to ground test scenarios. Simulate provides objective evaluation evidence; it does not make release decisions or host customer production agents.
+Simulate helps teams describe business processes, run controlled agent experiments in isolated environments, and inspect reproducible evidence. Production traces provide evidence to ground test scenarios. Simulate provides objective evaluation evidence. It does not make release decisions or host customer production agents.
 
 ## Core principles
 
@@ -37,7 +37,7 @@ Business description or technical import
 
 Simulate supports four entry points:
 
-- **Business discovery:** Non-technical owners describe a workflow in natural language; Simulate drafts a structured world model.
+- **Business discovery:** Non-technical owners describe a workflow in natural language. Simulate drafts a structured world model.
 - **Technical import:** Engineering teams import existing workflow contracts, tools, and telemetry schemas.
 - **Production discovery:** Identify anomalous behaviors and regressions from production traces.
 - **Planned change:** Evaluate prompts, models, tools, or routing changes before release.
@@ -90,6 +90,8 @@ A single versioned business world model defines:
 - **Technical bindings:** Mode for each dependency (`mock`, `recorded`, `sandbox`, `staging`, or approved `production`).
 - **Field provenance:** Origin of each field (`observed`, `generated`, `imported`, or `human-approved`).
 
+World Discovery asks focused questions for missing rules rather than assuming them. It can generate a draft environment for exploration, but only a reviewed model with technical bindings can produce release-blocking evidence.
+
 ### Workflow registration
 
 Each workflow belongs to one business world model and defines:
@@ -100,62 +102,34 @@ Each workflow belongs to one business world model and defines:
 - Tool schemas and service dependencies.
 - Limits on turns, tool calls, retries, latency, tokens, and cost.
 - Sandbox network and credential settings.
- use each one;
-- business rules, policies, approvals, prohibited actions, and success
-  conditions;
-- scenario templates, evaluators, limits, and cleanup rules;
-- each technical binding and its mode: generated, recorded, sandbox, staging,
-  or explicitly approved production;
-- provenance for observed, imported, generated, validated, and human-approved
-  fields.
+- Business rules, policies, approvals, prohibited actions, and success conditions.
+- Scenario templates, evaluators, limits, and cleanup rules.
+- Each technical binding and its mode: generated, recorded, sandbox, staging, or explicitly approved production.
+- Provenance for observed, imported, generated, validated, and human-approved fields.
+- Discovery schedule and minimum evidence thresholds.
+- Notification destinations.
 
-World Discovery asks focused questions for missing rules rather than assuming
-them. It may generate a draft environment for exploration, but only a reviewed
-model with technical bindings can produce release-blocking evidence.
-
-### Workflow registration
-
-Each workflow belongs to one business world model and has:
-
-- stable identifier and display name;
-- trace source and matching rules;
-- source repository and entry point, OCI image, or agent endpoint;
-- declared tools and dependencies;
-- configurable limits for outcomes, tool calls, retries, latency, tokens, and
-  cost;
-- sandbox, network, credentials, and data-handling settings;
-- discovery schedule and minimum evidence settings;
-- notification destinations.
-
-The system must group traces within the declared workflow or task. Similar text
-alone must not group unrelated domains.
+Simulate groups traces within the declared workflow or task. Similar text alone does not group unrelated domains.
 
 ### Scenario contract
 
 A published scenario records its business world model version and:
 
-- schema version and stable scenario version;
-- origin: `reconstructed`, `designed_variant`, `designed_edge_case`, or
-  `benchmark`;
-- source insight and trace references when applicable;
-- sanitized initial state and user request;
-- allowed dependencies and tools;
-- recorded external responses or disposable service fixtures;
-- expected outcome and evaluator definitions;
-- allowed and forbidden state changes;
-- tool-call, retry, latency, token, and cost limits;
-- required approvals and cleanup behavior;
-- workflow, prompt, model, tool, policy, fixture, and evaluator versions.
+- Schema version and stable scenario version.
+- Origin: `reconstructed`, `designed_variant`, `designed_edge_case`, or `benchmark`.
+- Source insight and trace references when applicable.
+- Sanitized initial state and user request.
+- Allowed dependencies and tools.
+- Recorded external responses or disposable service fixtures.
+- Expected outcome and evaluator definitions.
+- Allowed and forbidden state changes.
+- Tool-call, retry, latency, token, and cost limits.
+- Required approvals and cleanup behavior.
+- Workflow, prompt, model, tool, policy, fixture, and evaluator versions.
 
-A scenario represents an executable unit of professional work, not only a
-prompt and expected text. Its initial state, allowed actions, dependencies,
-measurable outcomes, forbidden changes, limits, and cleanup must be sufficient
-for a reviewer to understand what the runner will do and how it will be judged.
+A scenario represents an executable unit of professional work, not only a prompt and expected text. Its initial state, allowed actions, dependencies, measurable outcomes, forbidden changes, limits, and cleanup must be sufficient for a reviewer to understand how the runner executes and evaluates the scenario.
 
-A trace-derived proposal starts from a central representative trace. Simulate
-can add close variants and extremes, but must label each origin. Only the
-human-edited, approved scenario becomes a persistent published version. The MVP
-does not retain discarded generated drafts.
+A trace-derived proposal starts from a central representative trace. Simulate can add close variants and edge cases, but must label each origin clearly. Only the human-edited, approved scenario becomes a persistent published version. The MVP does not retain discarded generated drafts.
 
 ### Scenario storage
 
@@ -164,76 +138,60 @@ Storage is configurable per project:
 - **Git mode:** Git is the source of truth. Simulate keeps an indexed copy.
 - **Managed mode:** Simulate stores an immutable published version.
 
-The MVP supports a guided form and a Prime Agent pull-request flow. Both produce
-the same YAML contract and require explicit approval.
+The MVP supports a guided form and a Prime Agent pull-request flow. Both produce the same YAML contract and require explicit approval.
 
 ### Data policy
 
 Projects choose one raw-trace policy:
 
-- retain raw traces;
-- retain only a sanitized projection;
-- allow temporary access and retain no raw trace.
+- Retain raw traces.
+- Retain only a sanitized projection.
+- Allow temporary access and retain no raw traces.
 
-The safe default is temporary raw access plus sanitized retention. Replace
-private values while preserving relations and behavior needed by the scenario.
-Only configured sanitized insights, approved contracts, and allowlisted evidence
-can leave customer infrastructure in BYOVM mode.
+The default setting provides temporary raw access with sanitized retention. Simulate replaces private values while preserving relationships and behavior required by the scenario. Only configured sanitized insights, approved contracts, and allowlisted evidence leave customer infrastructure in BYOVM mode.
 
 ## System architecture
 
 ### Control plane
 
-The hosted control plane stores organizations, projects, workflows, insights,
-scenario metadata, experiments, results, audit records, configuration, and
-runner leases. It exposes the API used by the CLI and Textual interface.
+The hosted control plane stores organizations, projects, workflows, insights, scenario metadata, experiments, results, audit records, configuration, and runner leases. It exposes the API used by the CLI and Textual interface.
 
 ### Execution plane
 
-Discovery and experiment work can run on:
+Discovery and experiment workloads run on:
 
 - Lab-managed ephemeral VMs; or
-- customer-provided VMs through BYOVM.
+- Customer-provided VMs through BYOVM.
 
-An experiment uses one clean ephemeral VM. The VM must be destroyed or cleaned
-before a runner can accept new work. Each run uses approved synthetic or
-sanitized state, short-lived experiment-scoped credentials, an explicit
-outbound allowlist, and an immutable agent image.
+An experiment uses one clean ephemeral VM. The runner destroys or cleans the VM before accepting new work. Each run uses approved synthetic or sanitized state, short-lived experiment-scoped credentials, an explicit outbound allowlist, and an immutable agent image.
 
 ### Runner protocol
 
 1. The control plane creates an experiment and a signed lease.
 2. A runner creates or claims a clean VM.
-3. The runner verifies the experiment ID, lease expiry, image digest, scenario
-   versions, and allowed dependencies.
+3. The runner verifies the experiment ID, lease expiry, image digest, scenario versions, and allowed dependencies.
 4. The runner executes sequence-numbered iterations.
-5. It buffers encrypted events during a short control-plane disconnect.
-6. It resumes upload from the last acknowledged sequence without duplicates.
-7. It uploads the immutable result and evidence.
-8. It destroys the VM and invalidates the credentials.
+5. The runner buffers encrypted events during a short control plane disconnect.
+6. The runner resumes upload from the last acknowledged sequence number without duplicate records.
+7. The runner uploads the immutable result and evidence.
+8. The runner destroys the VM and invalidates the credentials.
 
-A short connection loss does not stop a valid experiment. If the lease expires,
-the runner stops, cleans up, discards the result, and reports an operational
-failure after reconnect. The MVP does not publish partial experiment results.
+A short connection loss does not stop a valid experiment. If the lease expires, the runner stops, cleans up, discards the result, and reports an operational failure after reconnecting. The MVP does not publish partial experiment results.
 
 ### Remote access
 
-Textual connects through the control-plane API. It does not connect directly to
-the VM. A user can start a run through the API or CLI, disconnect SSH, reconnect,
-and attach to the same experiment while the lease is valid. Plain JSON remains
-the stable automation interface.
+Textual connects through the control plane API. It does not connect directly to the VM. A user can start a run through the API or CLI, disconnect SSH, reconnect, and attach to the same experiment while the lease is valid. Plain JSON remains the stable automation interface.
 
 ### Dependency policy
 
 Each dependency selects an explicit mode:
 
-- recorded fixture;
-- disposable sandbox service;
-- customer staging service;
-- a customer-approved production service.
+- Recorded fixture.
+- Disposable sandbox service.
+- Customer staging service.
+- Customer-approved production service.
 
-The scenario contract, network allowlist, credential scope, and cleanup policy
-control access. Simulate must not silently choose a more permissive mode.
+The scenario contract, network allowlist, credential scope, and cleanup policy control access. Simulate does not silently choose a more permissive mode.
 
 ## Delivery rules
 
@@ -241,503 +199,328 @@ Each checkpoint must be reviewable by itself.
 
 For every checkpoint:
 
-1. define the user-visible behavior and contract;
-2. add the smallest complete implementation;
-3. add focused unit and integration checks;
-4. run Ruff, mypy, and the relevant tests;
-5. update this roadmap with evidence and limitations;
-6. stop for review before the next checkpoint when the user requests
-   checkpoint-gated delivery.
+1. Define user-visible behavior and contracts.
+2. Add the smallest complete implementation.
+3. Add focused unit and integration checks.
+4. Run Ruff, mypy, and the test suite.
+5. Update this roadmap with evidence and limitations.
+6. Stop for review before the next checkpoint when checkpoint-gated delivery is requested.
 
-Do not claim remote, cloud, deterministic, safe, or durable behavior without a
-focused test of the named boundary.
+Do not claim remote, cloud, deterministic, safe, or durable behavior without a focused test of the named boundary.
 
 # Completed foundation
 
-Phases 0–7 established the reference system and the first complete local
-simulation path. Their code still contains older terms such as `failure`,
-`regression`, and `comparison`. Phase 8 must migrate public product contracts
-carefully. Do not perform a large mechanical rename.
+Phases 0 to 7 established the reference system and the first complete local simulation path. Their code still contains older terms such as `failure`, `regression`, and `comparison`. Phase 8 must migrate public product contracts carefully. Do not perform a large mechanical rename.
 
 ## Phase 0 — Platform foundation [COMPLETE]
 
-**Outcome:** FastAPI, typed settings, structured errors and logs, PostgreSQL,
-Alembic, health checks, Docker, and CI provide one repeatable base.
+**Outcome:** FastAPI, typed settings, structured errors and logs, PostgreSQL, Alembic, health checks, Docker, and CI provide one repeatable base.
 
-**Primary evidence:** `src/app/config.py`, `src/app/db.py`, `src/app/main.py`,
-`alembic/`, `docker-compose.yml`, `.github/workflows/ci.yml`, and platform tests.
+**Primary evidence:** `src/app/config.py`, `src/app/db.py`, `src/app/main.py`, `alembic/`, `docker-compose.yml`, `.github/workflows/ci.yml`, and platform tests.
 
 ## Phase 1 — Deterministic support reference system [COMPLETE]
 
-**Outcome:** A deterministic support domain provides customers, orders,
-policies, state transitions, stable errors, seed data, and HTTP boundaries.
+**Outcome:** A deterministic support domain provides customers, orders, policies, state transitions, stable errors, seed data, and HTTP boundaries.
 
-**Primary evidence:** `src/app/domain/support/`, `src/app/api/support_router.py`,
-and support integration tests.
+**Primary evidence:** `src/app/domain/support/`, `src/app/api/support_router.py`, and support integration tests.
 
 ## Phase 2 — Typed agent and privacy-safe tracing [COMPLETE]
 
-**Outcome:** A typed Pydantic AI boundary can run scripted or hosted models and
-records allowlisted agent, model, token, and tool evidence.
+**Outcome:** A typed Pydantic AI boundary runs scripted or hosted models and records allowlisted agent, model, token, and tool evidence.
 
-**Primary evidence:** `src/app/domain/agent/`, `src/app/adapters/`,
-`src/app/telemetry/`, and agent/live-model tests.
+**Primary evidence:** `src/app/domain/agent/`, `src/app/adapters/`, `src/app/telemetry/`, and agent/live-model tests.
 
 ## Phase 3 — Retrieval and grounding [COMPLETE]
 
-**Outcome:** The reference workflow has versioned policy retrieval, hybrid
-search, citations, retrieval metrics, and evaluation fixtures.
+**Outcome:** The reference workflow has versioned policy retrieval, hybrid search, citations, retrieval metrics, and evaluation fixtures.
 
-**Primary evidence:** `src/app/domain/retrieval/`,
-`tests/fixtures/retrieval_eval_v1.jsonl`, and retrieval tests.
+**Primary evidence:** `src/app/domain/retrieval/`, `tests/fixtures/retrieval_eval_v1.jsonl`, and retrieval tests.
 
 ## Phase 4 — Controlled stateful workflow [COMPLETE]
 
-**Outcome:** A LangGraph workflow persists checkpoints and requires explicit
-human confirmation before controlled actions.
+**Outcome:** A LangGraph workflow persists checkpoints and requires explicit human confirmation before controlled actions.
 
-**Primary evidence:** `src/app/domain/workflow/`,
-`src/app/api/workflow_router.py`, and checkpoint integration tests.
+**Primary evidence:** `src/app/domain/workflow/`, `src/app/api/workflow_router.py`, and checkpoint integration tests.
 
 ## Phase 5 — Canonical evidence and isolated simulation [COMPLETE]
 
-**Outcome:** Provider adapters map traces into a canonical evidence contract.
-The bundle compiler removes unsafe data, and the simulator runs against
-recorded or isolated PostgreSQL dependencies.
+**Outcome:** Provider adapters map traces into a canonical evidence contract. The bundle compiler removes unsafe data, and the simulator runs against recorded or isolated PostgreSQL dependencies.
 
-**Primary evidence:** `src/app/domain/evidence/`, `src/app/domain/bundle/`,
-`src/app/domain/simulation/`, LangSmith/Braintrust adapters, and evidence and
-simulation tests.
+**Primary evidence:** `src/app/domain/evidence/`, `src/app/domain/bundle/`, `src/app/domain/simulation/`, LangSmith/Braintrust adapters, and evidence and simulation tests.
 
 ## Phase 6 — Behavior grouping and review foundation [COMPLETE]
 
-**Outcome:** The existing failure-oriented implementation imports feedback,
-extracts deterministic features, groups related traces, stores review state,
-and exposes review APIs. It proves the review mechanism, but its product model
-is narrower than the approved behavior-insight model.
+**Outcome:** The failure-oriented implementation imports feedback, extracts deterministic features, groups related traces, stores review state, and exposes review APIs.
 
-**Primary evidence:** `src/app/domain/failures/`,
-`src/app/api/failures_router.py`, failure-review migrations and tests.
+**Primary evidence:** `src/app/domain/failures/`, `src/app/api/failures_router.py`, failure-review migrations and tests.
 
 ## Phase 7 — Scenarios, suites, simulator, and interfaces [COMPLETE]
 
-**Outcome:** Reviewed evidence can become stored regression cases and suites.
-The generic simulator runs YAML reference workflows through API, CLI, Rich, or
-full-screen Textual views. The renderer consumes events and does not own
-execution.
+**Outcome:** Reviewed evidence becomes stored regression cases and suites. The generic simulator runs YAML reference workflows through API, CLI, Rich, or full-screen Textual views. The renderer consumes events and does not own execution.
 
-The local Textual workbench starts from bare `lab simulate`. It uses a guided
-one-question setup, runs the same environment checks as direct CLI runs, and
-shows a monochrome keyboard-first event and evidence workspace. Direct
-`lab simulate run <scenario-id>` commands keep the Rich event stream.
+The local Textual workbench starts from `lab simulate`. It uses a guided one-question setup, runs the same environment checks as direct CLI runs, and displays a monochrome keyboard-first event and evidence workspace. Direct `lab simulate run <scenario-id>` commands retain the Rich event stream.
 
-**Primary evidence:** `src/app/domain/regression/`, `src/app/domain/suite/`,
-`src/app/domain/user_simulator/`, `src/app/cli/simulate.py`,
-`src/app/cli/textual_simulate.py`, `simulations/`, suite and simulator tests,
-and `artifacts/audit/phase7-audit.*`.
+**Primary evidence:** `src/app/domain/regression/`, `src/app/domain/suite/`, `src/app/domain/user_simulator/`, `src/app/cli/simulate.py`, `src/app/cli/textual_simulate.py`, `simulations/`, suite and simulator tests, and `artifacts/audit/phase7-audit.*`.
 
-**Completion evidence:** merged to `main` in `f31c438`; the merged validation
-record reported 702 Docker tests, including 674 unit tests and 28 integration
-tests.
+**Completion evidence:** Merged to `main` in `f31c438`. The merged validation record verified 702 Docker tests (674 unit tests and 28 integration tests).
 
 # Phase 8 — Business world compiler and controlled experiment engine [IN PROGRESS]
 
 ## Outcome
 
-Compile approved business world models into resettable environments, then run a
-baseline and one or more candidate agent configurations across approved
-scenarios. Repeat each scenario enough to measure variability and return
-reproducible evidence without making the release decision.
+Compile approved business world models into resettable environments. Run a baseline and candidate agent configurations across approved scenarios. Repeat each scenario to measure variability and return reproducible evidence without making release decisions.
 
-The default experiment uses one selected scenario. A user can instead select
-related scenarios or a saved suite. The existing support system is the first
-reference world; it is not the product's domain boundary.
+The default experiment uses one selected scenario. A user can select related scenarios or a saved suite. The support system is the first reference world; it is not the product domain boundary.
 
-## Phase 8 MVP — Modal investigation runner
+## Phase 8 MVP — Modal investigation runner [COMPLETE]
 
-Build the smallest complete investigation loop before implementing the full
-world compiler or experiment engine:
+Build the smallest complete investigation loop before implementing the full world compiler or experiment engine:
 
 1. A team member selects a trace and starts an investigation manually.
-2. Simulate creates a detached Modal Sandbox from the support reference world,
-   booting only the environment slice the scenario needs.
-3. Prime Agent — the first investigation runtime, driven through its RPC
-   interface by an in-sandbox runner bridge — receives the scoped environment
-   and task, then writes progress events and a concise final summary. Its tool
-   surface is limited to Simulate's skill: trace.read, world.describe,
-   environment.status, scenario.run, state.inspect, state.diff, evidence.read,
-   proposal.create, summary.submit.
-4. The user can reconnect to the running investigation, view persisted events,
-   and chat with the agent in both directions while it works.
-5. Simulate stores the trace reference, environment version, agent identities
-   (investigator profile and tested-agent OCI digest), event history, chat
-   messages, and final summary.
+2. Simulate creates a detached Modal Sandbox from the support reference world, booting only the environment slice required by the scenario.
+3. Prime Agent (driven through its RPC interface by an in-sandbox runner bridge) receives the scoped environment and task brief, then writes progress events and a concise final summary. It retains its Python-native IPython tool and receives nine domain-specific tools through the World Gateway extension: `trace.read`, `world.describe`, `environment.status`, `scenario.run`, `state.inspect`, `state.diff`, `evidence.read`, `proposal.create`, `summary.submit`.
+4. The user can reconnect to the running investigation, view persisted events, and chat with the agent in both directions during execution.
+5. Simulate stores the trace reference, environment version, agent identities (investigator profile and tested-agent OCI digest), event history, chat messages, and final summary.
 
-Modal is the first execution provider because it provides managed, detached
-cloud sandboxes with programmatic creation, reconnect, logs, shell access, and
-a monthly free-compute allowance. A Modal Sandbox is a managed cloud container,
-not a full VM; the tested agent runs as a process behind a World Gateway rather
-than as nested Docker. The implementation must keep a provider-neutral runner
-boundary so later work can support full lab-managed VMs and customer-provided
-VMs when multi-service worlds require them.
+Modal is the first execution provider because it provides managed, detached cloud sandboxes with programmatic creation, reconnect, logs, shell access, and a monthly compute allowance. A Modal Sandbox is a managed cloud container, not a full VM. The tested agent runs as a process behind a World Gateway rather than as nested Docker. The implementation preserves a provider-neutral runner boundary to support full lab-managed VMs and customer-provided VMs when multi-service worlds require them.
 
-The MVP does not automate alert intake, compile arbitrary business worlds, or
-run release-blocking baseline-versus-candidate experiments (including model
-swaps). Those remain the subsequent Phase 8 work below.
+The MVP does not automate alert intake, compile arbitrary business worlds, or run release-blocking baseline-versus-candidate experiments. Those capabilities are implemented in subsequent Phase 8 sub-phases.
 
-**Acceptance:** from one selected support trace, a user can start a detached
-Modal investigation, disconnect and reconnect while it runs, view persisted
-progress, and receive a concise written summary.
+**Acceptance:** From one selected support trace, a user can start a detached Modal investigation, disconnect and reconnect while it runs, view persisted progress, and receive a concise written summary.
+
+**Completion evidence:** Merged to `main` in merge commit `7b3c01a` on August 23, 2026. Focused gates on 2026-08-26: Ruff clean; strict mypy clean across 172 source files; 60 agent-runner/runner/config unit tests; 32 investigation/runner/integration tests. Live cloud verification on 2026-08-26 with real Modal credentials:
+
+```bash
+uv run python scripts/modal_smoke.py
+SIMULATE_LIVE_E2E=1 MODAL_ENABLED=true uv run python scripts/investigate_smoke.py
+```
+
+`scripts/modal_smoke.py` passed: the investigation image built with Node.js 22.23.2 and Prime Agent v0.8.1 on PATH, the sandbox was created, status was polled, the sandbox terminated, and repeated termination was idempotent. `scripts/investigate_smoke.py` passed for investigation `f50e641c-ba2a-40d8-96d8-235278ce4312`: a real Modal sandbox ran Prime Agent RPC against the public control plane through an HTTPS tunnel, exercised the World Gateway tools, persisted ordered events, stored exactly one summary, and terminated cleanly. Final verification on 2026-08-26: Ruff passed; strict mypy passed across 172 source files; 748 unit tests passed; the live Modal integration passed; and the full suite reported 777 passed, 21 skipped, and 2 failed. Both failures are the known isolated-PostgreSQL CLI issue and reproduce at the branch base commit `22e5044`.
+
+**Reliability and credential-boundary repair (2026-08-27):** A live investigation (`e35a0370-69aa-404e-8024-200870d2d6c4`) hung at 300 seconds: Prime Agent kept IPython active, called the control-plane SSE `/events` endpoint from inside the sandbox, and hung on SSE keepalives; 5,441 events persisted with no summary and no `investigation_finished`, and Modal killed the container (`exit=-2`). The repair preserves Prime's Python-native architecture (IPython and the nine World Gateway extension tools stay enabled; no `--no-builtin-tools` flag) and adds:
+
+1. **Separated authority:** a per-run loopback `WORLD_GATEWAY_TOKEN` generated in the bridge authenticates the World Gateway; `BRIDGE_TOKEN` is retained only for control-plane calls and never reaches Prime Agent.
+2. **Sanitized child environment:** Prime launches under a deliberate allowlist (runtime basics, model-provider credentials, gateway wiring) that excludes `BRIDGE_TOKEN`, `CONTROL_PLANE_CALLBACK_URL`, task/control-plane data, database credentials, and unrelated secrets. The provider credential remains visible to Prime/IPython until a provider proxy is added.
+3. **Truthful gateway context:** the gateway reports investigation/world/slice/trace metadata it can prove and returns explicit `available: false` reasons for state/evidence/diff data that is not compiled, instead of unexplained empty objects.
+4. **Bounded tool watchdog:** official `tool_execution_start`/`end` events are tracked by `toolCallId`; a tool that runs past the bridge tool timeout receives one official `{"type":"abort"}`, a persisted warning, invalidation of any stale `agent_end`, and one bounded recovery steer. Recovery expiry fails deterministically; completion is never faked. The watchdog combines two deadlines: the per-tool age (`TOOL_TIMEOUT_S`) and an overall run cutoff that the bridge derives from the injected sandbox lifetime (`SANDBOX_TIMEOUT_S` minus the recovery timeout minus the 60s reserve). The run cutoff guarantees that a tool which starts late in the run (measured live: hung IPython tool at ~140s of a 300s run, Modal kill at ~299s) is still aborted in time for recovery, flush, and child cleanup. The watchdog values flow `Settings -> SandboxSpec -> Modal container env (TOOL_TIMEOUT_S / TOOL_RECOVERY_TIMEOUT_S / SANDBOX_TIMEOUT_S) -> bridge`; `SandboxSpec` validation rejects watchdog budgets that cannot fit the outer lifetime and always injects the resolved outer timeout.
+
+Final repair evidence on 2026-08-27: Ruff clean; strict mypy clean across 172 source files; 775 unit tests passed (including deterministic watchdog bridge-seam regressions for abort-order lifecycle, the 300s watchdog budget, and terminal-event persistence). Live investigation `5d1c240d-a4ca-4faa-b213-cef4a696113f` completed against a restarted control plane with sandbox exit code 0, exactly one persisted summary, and exactly one persisted `investigation_finished` event. The full suite reported 804 passed, 21 skipped, and 2 failed; both failures are the known isolated-PostgreSQL CLI issue that reproduces at base commit `22e5044`. The current World Gateway still lacks compiled trace, state, and evidence data; this run verifies the investigation pipeline, not a real-world refund diagnosis.
 
 ## Phase 8.0 — World discovery, model, and compiler
 
-- Add one versioned, domain-neutral business world model for actors, state,
-  capabilities, rules, policies, success conditions, scenario templates,
-  evaluators, and technical bindings.
-- Support two paths into the same model: guided natural-language World Discovery
-  for business owners, and structured import for technical teams with existing
-  systems.
-- Have World Discovery generate a plain-language map, structured draft, missing
-  questions, risk boundaries, and integration checklist. It must not invent
-  unmarked rules or publish the draft.
-- Classify every model field as observed from telemetry, imported, generated,
-  validated against a safe system, or human-approved.
-- Compile an approved model into an executable environment definition. Keep
-  environment execution, agent harness, session history, and hidden evaluator
-  evidence separate and replaceable.
-- Generalize the current support-specific scenario, state, resource, adapter,
-  event mapping, and runner assumptions through domain plugins. Migrate the
-  support reference world through the generic contract before adding another
-  domain.
+- Add one versioned, domain-neutral business world model for actors, state, capabilities, rules, policies, success conditions, scenario templates, evaluators, and technical bindings.
+- Support two paths into the same model: guided natural-language World Discovery for business owners, and structured import for technical teams with existing systems.
+- Ensure World Discovery generates a plain-language map, structured draft, missing questions, risk boundaries, and an integration checklist. It must not invent unmarked rules or publish drafts automatically.
+- Classify every model field as observed from telemetry, imported, generated, validated against a safe system, or human-approved.
+- Compile an approved model into an executable environment definition. Keep environment execution, agent harness, session history, and hidden evaluator evidence separate and replaceable.
+- Generalize support-specific scenario, state, resource, adapter, event mapping, and runner assumptions through domain plugins. Migrate the support reference world through the generic contract before adding another domain.
 
-**Acceptance:** a business owner can create a reviewable world-model draft from
-plain language; a technical team can import the same model shape; and a reviewed
-support reference model compiles into the existing isolated environment without
-changing its observable behavior.
+**Acceptance:** A business owner can create a reviewable world-model draft from plain language; a technical team can import the same model shape; and a reviewed support reference model compiles into the existing isolated environment without changing observable behavior.
 
 ## Phase 8.1 — Experiment contract and vocabulary
 
-Define one versioned experiment contract linked to an approved business world
-model with:
+Define one versioned experiment contract linked to an approved business world model containing:
 
-- one baseline and one or more candidates;
-- baseline defaulting to the deployed configuration, with another saved version
-  selectable;
-- candidate changes declared as model, prompt, retrieval, tools, policy,
-  routing, workflow code, or a combination;
-- exact scenario versions and starting-state hashes;
-- workflow-plugin identity and version, including its declared actors, runtime
-  topology, User Agent tools, Scenario Agent tools, retrieval collections, and
-  technical bindings;
-- versioned User Agent context, behavior-profile cohort, and limits;
-- versioned Scenario Agent context and limits;
-- dependency, fixture, evaluator, and limit versions;
-- repetition count, interleaving policy, concurrency, duration, and budget;
-- a configurable ablation plan;
-- trigger identity: a developer, PR or CI workflow, or Prime Agent after explicit
-  approval;
-- runner target: Lab-managed or BYOVM;
-- retention and notification policy.
+- One baseline and one or more candidates.
+- Baseline defaulting to the deployed configuration, with another saved version selectable.
+- Candidate changes declared as model, prompt, retrieval, tools, policy, routing, workflow code, or a combination.
+- Exact scenario versions and starting-state hashes.
+- Workflow-plugin identity and version, including declared actors, runtime topology, User Agent tools, Scenario Agent tools, retrieval collections, and technical bindings.
+- Versioned User Agent context, behavior-profile cohort, and limits.
+- Versioned Scenario Agent context and limits.
+- Dependency, fixture, evaluator, and limit versions.
+- Repetition count, interleaving policy, concurrency, duration, and budget.
+- A configurable ablation plan.
+- Trigger identity: a developer, PR or CI workflow, or Prime Agent after explicit approval.
+- Runner target: Lab-managed or BYOVM.
+- Retention and notification policy.
 
-For a candidate with several declared changes, the default ablation plan runs
-each change alone and then the full candidate. A project can configure another
-plan.
+For a candidate with multiple declared changes, the default ablation plan runs each change individually and then runs the complete candidate. Projects can configure alternative plans.
 
 Each iteration has two isolated model boundaries:
 
-- The **User Agent** simulates the person interacting with the workflow. Its
-  context contains the person's reviewed behavior traits, plain-language goal,
-  facts the person knows, user-visible retrieval collections, its own
-  conversation history, and the user-side tools declared by the workflow.
-- The **Scenario Agent** is the product or business-workflow agent under test.
-  Its context contains the scenario request, authorized business knowledge,
-  its own conversation history, and the product-side tools declared by the
-  workflow.
+- The **User Agent** simulates the person interacting with the workflow. Its context contains reviewed behavior traits, a plain-language goal, known facts, user-visible retrieval collections, conversation history, and user-side tools declared by the workflow.
+- The **Scenario Agent** is the product or business-workflow agent under test. Its context contains the scenario request, authorized business knowledge, conversation history, and product-side tools declared by the workflow.
 
-The two agents never share unrestricted histories, dependencies, retrieval
-collections, or toolsets. They exchange typed messages and references through
-the scenario engine. Hidden evaluator contracts, expected transitions,
-reference solutions, and release decisions remain outside both contexts.
+The two agents never share unrestricted histories, dependencies, retrieval collections, or toolsets. They exchange typed messages and references through the scenario engine. Hidden evaluator contracts, expected transitions, reference solutions, and release decisions remain outside both contexts.
 
-Every workflow plugin must implement the approved business world model's
-environment, actors, user-side and product-side tools, safe state projections,
-retrieval collections, Evaluators, and runtime-map nodes and edges. Executable
-code and secrets do not enter the model. After the built-in workflows migrate,
-reject a workflow that lacks this contract rather than guessing its topology or
-capabilities.
+Every workflow plugin must implement the approved business world model environment, actors, user-side and product-side tools, safe state projections, retrieval collections, Evaluators, and runtime-map nodes and edges. Executable code and secrets do not enter the model. Reject workflows lacking this contract rather than guessing topology or capabilities.
 
-**Acceptance:** invalid or undeclared differences fail before a VM starts. The
-same contract can be submitted through Python, API, CLI, and Textual. Contract
-tests prove that neither agent can resolve the other agent's history, private
-retrieval collections, dependencies, or tools.
+**Acceptance:** Invalid or undeclared differences fail before a VM starts. The same contract can be submitted through Python, API, CLI, and Textual. Contract tests prove that neither agent can resolve the other agent's history, private retrieval collections, dependencies, or tools.
 
 ## Phase 8.2 — Immutable candidate and environment identity
 
-- Accept either Git repository plus commit or an OCI image digest.
-- If given Git identity, build the image and record its content digest.
-- Record runtime, agent SDK, model, prompt, behavior profile, tool, policy,
-  retrieval collection, fixture, workflow plugin, scenario, and evaluator
-  versions.
-- Persist User Agent and Scenario Agent message histories separately. Use the
-  SDK's typed message serialization rather than rebuilding a complete plain-text
-  transcript for each turn.
-- Retain the audit history under the approved privacy policy, but build bounded
-  model context separately. Treat compacted summaries as versioned derived
-  artifacts linked to their source messages, never as authoritative state.
-- Keep histories in an encrypted, server-owned store with explicit retention
-  and redaction. Do not place unrestricted messages in the event stream or
-  immutable result, and never trust client-supplied history, tool results, or
-  approvals as authorization evidence.
-- Before accepting a behavior profile, review the configured User Agent model's
-  current documentation and run a live benchmark for structured output, tool
-  use, multi-turn consistency, context reduction, conflicting claims, and
-  declared limits. Start with the current reviewed model rather than surveying
-  providers.
+- Accept either a Git repository with commit hash or an OCI image digest.
+- If given a Git identity, build the image and record its content digest.
+- Record runtime, agent SDK, model, prompt, behavior profile, tool, policy, retrieval collection, fixture, workflow plugin, scenario, and evaluator versions.
+- Persist User Agent and Scenario Agent message histories separately using typed message serialization.
+- Retain audit history under the approved privacy policy, but build bounded model context separately. Compacted summaries remain versioned derived artifacts linked to source messages, never authoritative state.
+- Store histories in an encrypted, server-owned store with explicit retention and redaction. Exclude unrestricted messages from the event stream or immutable result. Never trust client-supplied history, tool results, or approvals as authorization evidence.
+- Before accepting a behavior profile, review the configured User Agent model documentation and run a live benchmark for structured output, tool use, multi-turn consistency, context reduction, conflicting claims, and declared limits. Start with the current reviewed model rather than surveying providers.
 - Reject mutable image tags as the final executed identity.
 
-**Acceptance:** a completed iteration can identify the exact code and data it
-used without relying on the current repository state.
+**Acceptance:** A completed iteration identifies the exact code and data used without relying on current repository state.
 
 ## Phase 8.3 — Cloud runner, lease, and reconnect protocol
 
-- Implement one provider-neutral runner protocol.
-- Support Lab-managed VMs and BYOVM without two experiment engines.
+- Implement a provider-neutral runner protocol.
+- Support Lab-managed VMs and BYOVM without separate experiment engines.
 - Use signed, expiring, experiment-scoped leases and credentials.
-- Sequence and acknowledge events. Buffer them locally in encrypted form during
-  a bounded disconnect.
-- Resume without duplicate events.
-- Stop, clean up, and discard the result after lease expiry.
+- Sequence and acknowledge events. Buffer events locally in encrypted form during bounded disconnects.
+- Resume streaming without duplicate events.
+- Stop, clean up, and discard results after lease expiry.
 - Prove that a disconnected SSH or Textual client does not own execution.
 
-**Acceptance:** kill and reconnect the client and control-plane connection in
-focused tests. The experiment either reconnects safely or ends as a visible
-operational failure with no partial result.
+**Acceptance:** Disconnect and reconnect client and control plane connections in focused tests. The experiment either reconnects safely or terminates as a visible operational failure with no partial result.
 
 ## Phase 8.4 — Isolated state and dependency modes
 
-- Start each experiment from the approved synthetic or sanitized state compiled
-  from the business world model.
+- Start each experiment from approved synthetic or sanitized state compiled from the business world model.
 - Capture all state changes as evidence.
-- Give both agents different typed contexts and toolsets over the same isolated
-  environment. The User Agent may inspect or act through every user-side tool
-  the workflow makes available, such as an account, inbox, order history, bank,
-  or flight wallet. It receives no privileged success signal.
-- Attribute every tool call and state change to the User Agent, Scenario Agent,
-  environment, or declared external event. A User Agent action cannot satisfy a
-  requirement assigned to the Scenario Agent merely because final state
-  matches.
-- Enforce each actor's tool, dependency, network, credential, authorization,
-  action, and cleanup contract.
-- Support generated draft, recorded, disposable sandbox, staging, and explicitly
-  approved production dependency modes. Generated draft worlds are exploratory
-  only and cannot provide release-blocking evidence.
+- Provide both agents with different typed contexts and toolsets over the same isolated environment. The User Agent can inspect or act through declared user-side tools (account, inbox, order history, bank, or travel wallet). It receives no privileged success signal.
+- Attribute every tool call and state change to the User Agent, Scenario Agent, environment, or declared external event. User Agent actions cannot satisfy requirements assigned to the Scenario Agent solely because final state matches.
+- Enforce tool, dependency, network, credential, authorization, action, and cleanup contracts for each actor.
+- Support generated draft, recorded, disposable sandbox, staging, and explicitly approved production dependency modes. Generated draft worlds remain exploratory and cannot provide release-blocking evidence.
 - Destroy or clean the VM before reuse.
 
-**Acceptance:** tests prove isolation between experiments, shared state without
-actor confusion, outbound denial for undeclared hosts, credential expiry, and
-cleanup after success, failure, and cancellation. A deceptive User Agent claim
-cannot override observed state, and an action performed by one actor cannot be
-credited to another.
+**Acceptance:** Tests prove isolation between experiments, shared state without actor confusion, outbound denial for undeclared hosts, credential expiry, and cleanup after success, failure, and cancellation. Deceptive User Agent claims cannot override observed state, and actions performed by one actor cannot be credited to another.
 
 ## Phase 8.5 — Repeated and interleaved execution
 
-- Repeat every baseline and candidate scenario a configurable number of times.
-- Run the same reviewed, versioned behavior-profile cohort against baseline and
-  candidates. Profiles constrain observable traits such as patience, trust,
-  persistence, expertise, disclosure, truthfulness, and confirmation behavior
-  without prescribing exact utterances.
+- Repeat every baseline and candidate scenario for a configured count.
+- Run the same reviewed, versioned behavior-profile cohort against baseline and candidate configurations. Profiles constrain observable traits (patience, trust, persistence, expertise, disclosure, truthfulness, and confirmation behavior) without prescribing exact utterances.
 - Interleave baseline and candidate iterations to reduce time-order bias.
 - Preserve each individual iteration.
 - Apply the configured ablation plan.
-- Enforce configurable maximum VMs, iterations, duration, and estimated model
-  plus infrastructure cost.
+- Enforce limits on maximum VMs, iterations, duration, and estimated model plus infrastructure cost.
 
-**Acceptance:** execution order is reproducible from the contract, budget limits
-stop new iterations, and every scheduled iteration has one final status. The
-User Agent may decide when to leave, but turn, token, tool-call, duration, and
-cost limits always bound the interaction.
+**Acceptance:** Execution order is reproducible from the contract, budget limits stop new iterations, and every scheduled iteration has one final status. Interaction is bounded by turn, token, tool-call, duration, and cost limits.
 
 ## Phase 8.6 — Evaluation and statistics
 
-Support both evaluator classes:
+Support two evaluator classes:
 
-- deterministic YAML checks for outcomes, state changes, tool use, retries,
-  errors, and declared limits;
-- versioned model-based checks where deterministic checks cannot express the
-  quality judgment.
+- Deterministic YAML checks for outcomes, state changes, tool use, retries, errors, and declared limits.
+- Versioned model-based checks where deterministic checks cannot express quality judgment.
 
-Evaluate authoritative environment outcome and the User Agent's observed or
-claimed outcome separately, then derive one visible Result without discarding
-either measurement. Preserve outcomes such as completed and accepted,
-completed but disputed, false reassurance, failed, and abandoned. Deterministic
-state, authorization, and actor-attribution checks remain authoritative where
-code can express the requirement.
+Evaluate authoritative environment outcomes and User Agent observed outcomes separately, then derive one visible Result without discarding either measurement. Preserve outcomes such as completed and accepted, completed but disputed, false reassurance, failed, and abandoned. Deterministic state, authorization, and actor-attribution checks remain authoritative when code can express the requirement.
 
-Before an evaluator can contribute experiment evidence, validate it against a
-known-good result, a no-op result, and known incomplete or incorrect results.
-Store these evaluator checks with the evaluator version. A failed check blocks
-the experiment before a VM starts. Model-based evaluator checks must also make
-their model, prompt, and observed variability visible.
+Before an evaluator contributes experiment evidence, validate it against a known-good result, a no-op result, and known incomplete or incorrect results. Store these validation checks with the evaluator version. Failed checks block the experiment before a VM starts. Model-based evaluators must disclose their model, prompt, version, and observed variability.
 
-For outcomes and counts, report the individual values, mean, standard deviation,
-median, minimum, and maximum. For latency and cost, also report p50, p95, and p99
-only when the sample size supports them. Make model-evaluator variability and
-version visible.
+Report individual values, mean, standard deviation, median, minimum, and maximum for outcomes and counts. For latency and cost, report p50, p95, and p99 only when sample size supports them.
 
-For every configured limit, show:
+For every configured limit, report:
 
-- measured value;
-- configured limit;
-- met or exceeded;
-- direction and size of the difference.
+- Measured value.
+- Configured limit.
+- Met or exceeded status.
+- Direction and magnitude of the difference.
 
-Do not convert these measurements into a deployment recommendation.
+Do not convert these measurements into an automated deployment recommendation.
 
 ## Phase 8.7 — Result contract and evidence package
 
-Produce an immutable JSON result with:
+Produce an immutable JSON result containing:
 
-- whole-experiment summary;
-- workflow and scenario-group summaries;
-- per-scenario results;
-- every iteration and trace;
-- outcome and state changes;
-- authoritative environment outcome, User Agent outcome, and the derived Result;
-- User Agent and Scenario Agent identities, prompt versions, bounded context
-  configuration, message-history references, usage, and termination reasons;
-- actor-attributed user-side and product-side tool paths and state changes;
-- retrieval queries, collection and document versions, bounded chunk
-  identifiers, provenance, and citations passed to each agent;
-- tool paths and counts;
-- retries and errors;
-- latency, token, and cost measurements;
-- configured limits and observed differences;
-- averages, spread, and individual observations;
-- all scenario, code, configuration, fixture, evaluator, and evidence versions;
-- operational failures separated from agent behavior.
+- Whole-experiment summary.
+- Workflow and scenario-group summaries.
+- Per-scenario results.
+- Every iteration and trace reference.
+- Outcome and state changes.
+- Authoritative environment outcome, User Agent outcome, and derived Result.
+- User Agent and Scenario Agent identities, prompt versions, bounded context configuration, message-history references, usage, and termination reasons.
+- Actor-attributed user-side and product-side tool paths and state changes.
+- Retrieval queries, collection and document versions, chunk identifiers, provenance, and citations passed to each agent.
+- Tool paths and counts.
+- Retries and errors.
+- Latency, token, and cost measurements.
+- Configured limits and observed differences.
+- Averages, spread, and individual observations.
+- All scenario, code, configuration, fixture, evaluator, and evidence versions.
+- Operational failures separated from agent behavior.
 
-The result reports the experiment. It does not recommend what to do.
-Textual and immutable JSON are the required result surfaces. PR comments and CI
-summaries are optional consumers, not separate result contracts.
+The result reports the experiment without recommending release actions. Textual and immutable JSON are the required result surfaces. PR comments and CI summaries consume these results.
 
-Authoritative business state, retrievable business knowledge, conversation
-history, derived summaries, and hidden evaluator evidence are separate data
-classes. Retrieval augments an agent's permitted context; it never overrides
-environment state. Keep full private records and unrestricted retrieved text
-out of prompts, events, and traces by default. Pass retrieved content as
-untrusted data with stable provenance and citations, never as system
-instructions.
+Authoritative business state, retrievable knowledge, conversation history, derived summaries, and hidden evaluator evidence are separate data classes. Retrieval augments permitted context; it never overrides environment state. Exclude full private records and unrestricted retrieved text from prompts, events, and traces by default. Pass retrieved content as untrusted data with stable provenance and citations, never as system instructions.
 
 ## Phase 8.8 — Textual experiment workspace
 
-Extend the existing full-screen Textual interface. Do not create a second
-execution path.
+Extend the existing full-screen Textual interface without creating a second execution path.
 
 The workspace must:
 
-- attach through the control-plane API;
-- survive local SSH disconnect and reconnect;
-- show experiment, scenario, candidate, ablation, and iteration progress;
-- show baseline and candidates side by side;
-- render a plugin-declared runtime schematic with separate User Agent and
-  Scenario Agent lanes, their tool paths, shared environment effects,
-  Evaluators, and Result;
-- move a marker continuously along the active declared edge from observed
-  start, completion, retry, approval, failure, and state-change events;
-- stay close to the latest event by compressing intermediate animation frames
-  during bursts without dropping events from the final timeline;
-- show safe live summaries only. Do not add a pause control or live evidence
-  inspection; unlock the complete timeline and evidence inspector after the
-  iteration completes or fails;
-- let the user drill from summary to scenario to iteration to trace;
-- show limits, variability, state changes, tool paths, errors, cost, and latency;
-- make operational failure distinct from evaluated behavior;
-- export or locate the immutable JSON result;
-- support keyboard-only operation, narrow terminals, loading, empty, partial,
-  error, cancelled, and complete states.
+- Attach through the control plane API.
+- Survive local SSH disconnect and reconnect.
+- Display experiment, scenario, candidate, ablation, and iteration progress.
+- Display baseline and candidates side by side.
+- Render a plugin-declared runtime schematic showing separate User Agent and Scenario Agent lanes, tool paths, shared environment effects, Evaluators, and Result.
+- Move a marker continuously along active edges based on observed start, completion, retry, approval, failure, and state-change events.
+- Track latest events by compressing intermediate animation frames during bursts without dropping events from the final timeline.
+- Display safe live summaries during execution, unlocking the complete timeline and evidence inspector after the iteration completes or fails.
+- Allow users to drill down from summary to scenario, iteration, and trace.
+- Show limits, variability, state changes, tool paths, errors, cost, and latency.
+- Distinguish operational failure from evaluated agent behavior.
+- Export or locate the immutable JSON result.
+- Support keyboard-only operation, narrow terminals, and all standard execution states (loading, empty, partial, error, cancelled, complete).
 
-Rich remains the compatible streaming view. Plain and JSON output remain stable
-for automation.
+Rich remains the compatible streaming view. Plain text and JSON output remain stable for automation.
 
 ## Phase 8 acceptance
 
-Phase 8 is complete only when:
+Phase 8 is complete when:
 
-1. one baseline and at least two candidate or ablation configurations run in
-   clean ephemeral VMs;
-2. one experiment uses one scenario and another uses a saved suite;
-3. repeated iterations are interleaved and variability is visible;
-4. Lab-managed and BYOVM runners pass the same contract tests;
-5. disconnect and reconnect preserve one ordered event stream;
-6. lease expiry produces cleanup and no partial result;
-7. deterministic and model-based evaluators retain their versions and evidence;
-8. every active evaluator passes known-good, no-op, incomplete, and known-bad
-   checks;
-9. every built-in workflow implements an approved business world model with both
-   agent contexts, actor-specific tools, retrieval boundaries, runtime topology,
-   technical bindings, and Evaluators;
-10. a repeated cohort preserves flexible User Agent interaction while making
-    baseline and candidate variability visible;
-11. persisted agent histories resume without crossing agent boundaries or
-    duplicating an irreversible tool effect;
-12. User Agent tools observe the same environment as Scenario Agent tools, and
-    actor-attributed Evaluators reject false credit;
-13. Textual stays live during event bursts, reconnects, and unlocks complete
-    evidence after execution;
-14. immutable JSON contains all required provenance and no recommendation field;
-15. Ruff, mypy, unit tests, integration tests, and an end-to-end cloud test
-    pass.
+1. One baseline and at least two candidate or ablation configurations run in clean ephemeral VMs.
+2. One experiment runs a single scenario and another runs a saved suite.
+3. Repeated iterations are interleaved and variability is visible.
+4. Lab-managed and BYOVM runners pass the same contract tests.
+5. Disconnect and reconnect preserve an ordered event stream.
+6. Lease expiry triggers cleanup and produces no partial results.
+7. Deterministic and model-based evaluators retain versions and evidence.
+8. Every active evaluator passes known-good, no-op, incomplete, and known-bad checks.
+9. Every built-in workflow implements an approved business world model with both agent contexts, actor-specific tools, retrieval boundaries, runtime topology, technical bindings, and Evaluators.
+10. A repeated cohort preserves flexible User Agent interaction while displaying baseline and candidate variability.
+11. Persisted agent histories resume without crossing agent boundaries or duplicating irreversible tool effects.
+12. User Agent tools observe the same environment as Scenario Agent tools, and actor-attributed Evaluators reject false credit.
+13. Textual remains live during event bursts, reconnects reliably, and unlocks complete evidence after execution.
+14. Immutable JSON contains all required provenance and no automated recommendation fields.
+15. Ruff, mypy, unit tests, integration tests, and an end-to-end cloud test pass.
 
 # Phase 9 — Behavior discovery and Prime Agent workflow
 
 ## Outcome
 
-Turn opt-in production traces into a dated behavior report, reviewable
-business-world-model extensions and scenario drafts, and an explicit path to a
-Phase 8 experiment.
+Convert opt-in production traces into dated behavior reports, reviewable business world model extensions, scenario drafts, and an explicit path to a Phase 8 experiment.
 
 ## Trace intake
 
-- Support LangSmith and OpenTelemetry as the first trace sources.
-- Let a project opt in by source and workflow.
+- Support LangSmith and OpenTelemetry as the initial trace sources.
+- Allow projects to opt in by source and workflow.
 - Apply the configured raw-trace policy at intake.
-- Run discovery in batches, not continuously.
-- Let projects trigger a batch by schedule, minimum new trace count, or release.
-- Compare the current window with the previous window and, when configured, the
-  last approved release.
+- Run discovery in batches rather than continuously.
+- Allow projects to trigger batches by schedule, minimum new trace count, or release event.
+- Compare the current window with previous windows and the last approved release.
 
 ## Behavior discovery
 
-- Group within the declared workflow or task.
-- Detect unsafe or poor behavior and efficient successful behavior worth
-  preserving.
+- Group traces within the declared workflow or task.
+- Detect unsafe behavior, poor performance, and efficient successful behavior worth preserving.
 - Include successful and failed counts.
 - Apply configured minimum evidence thresholds.
-- Update an existing insight with new evidence and trend instead of duplicating
-  it.
-- Create a dated discovery report. Put important insights in the inbox.
+- Update existing insights with new evidence and trends instead of creating duplicates.
+- Create a dated discovery report and route important insights to the inbox.
 
 Each insight includes:
 
-- detected behavior and workflow;
-- successful and failed trace counts;
-- violated workflow limit when applicable;
-- outcome, state, cost, latency, tool, and retry differences;
-- representative traces;
-- estimated impact;
-- grouping confidence, clearly not causal certainty;
-- proposed world-model extensions and several proposed scenarios.
+- Detected behavior and workflow.
+- Successful and failed trace counts.
+- Violated workflow limits when applicable.
+- Differences in outcome, state, cost, latency, tools, and retries.
+- Representative traces.
+- Estimated impact.
+- Grouping confidence (distinguished from causal certainty).
+- Proposed world-model extensions and scenario candidates.
 
-Scenario drafts should cover a representative case, close variants, and useful
-edge cases. Every generated field must retain provenance to sanitized evidence
-or be marked as an explicit design decision. Each draft package includes its
-environment and dependency requirements, evaluator proposal, limits, cleanup,
-and the unresolved questions a reviewer must answer. Generated drafts remain
-candidates; they do not become product truth through repetition or agent
-agreement.
-
-Configured limit violations appear in the report. Notification behavior remains
-configurable. Do not add an opaque ranking model for the MVP.
+Scenario drafts cover representative cases, close variants, and useful edge cases. Every generated field retains provenance to sanitized evidence or is marked as an explicit design decision. Each draft includes environment requirements, evaluator proposals, limits, cleanup rules, and unresolved questions for human review. Generated drafts remain candidates until approved. Configured limit violations appear in the report. Do not add an opaque ranking model for the MVP.
 
 ## Prime Agent handoff
 
@@ -752,411 +535,252 @@ batch discovery
   -> approved experiment starts
 ```
 
-The discovery threshold and Prime Agent system prompt decide whether an insight
-is worth a developer ping. Destinations are configurable per workflow: Slack,
-Linear, email, or webhook.
+The discovery threshold and Prime Agent prompt determine whether an insight triggers a developer notification. Notification channels are configurable per workflow (Slack, Linear, email, or webhook).
 
 Before approval, Prime Agent can:
 
-- inspect sanitized evidence;
-- compare discovery windows;
-- draft an explanation and YAML;
-- draft environment requirements, evaluator checks, and negative test cases;
-- prepare and send the configured notification.
+- Inspect sanitized evidence.
+- Compare discovery windows.
+- Draft explanations and YAML manifests.
+- Draft environment requirements, evaluator checks, and negative test cases.
+- Prepare and send configured notifications.
 
-Before approval, Prime Agent cannot publish a scenario or run an experiment.
-After explicit approval, it can publish through the configured Git or managed
-storage path and start the requested cloud experiment.
+Prime Agent cannot publish scenarios or run experiments without explicit approval. After approval, it can publish through Git or managed storage and start the requested cloud experiment.
 
-The audit record includes source insight and trace references, Prime Agent model
-and prompt version, approved YAML, approving administrator, final stored version,
-and experiment identity. If Prime Agent fails, the original insight remains
-available for manual review.
+The audit record includes source insight and trace references, Prime Agent model and prompt versions, approved YAML, approving user, final stored version, and experiment identity. If Prime Agent fails, the original insight remains available for manual review.
 
 # Phase 10 — Hosted operations and MVP hardening
 
 ## Outcome
 
-Operate the complete loop for real projects without broadening the product.
+Operate the complete loop for production projects without broadening product scope.
 
-- Make all workflow, discovery, data, runner, budget, retention, and notification
-  settings configurable through Admin and API.
+- Make all workflow, discovery, data, runner, budget, retention, and notification settings configurable through Admin and API.
 - Harden Lab-managed VM provisioning and customer BYOVM enrollment.
-- Add audit views for approvals, published contracts, runner leases, credentials,
-  evidence uploads, and cleanup.
-- Add operational alerts for stuck discovery, missing runner capacity, expired
-  leases, cleanup failures, and result upload failures.
-- Prove tenant isolation and project-scoped access.
-- Add backup, restore, retention, and deletion procedures for control-plane data.
+- Add audit views for approvals, published contracts, runner leases, credentials, evidence uploads, and cleanup.
+- Add operational alerts for stuck discovery, missing runner capacity, expired leases, cleanup failures, and result upload failures.
+- Verify tenant isolation and project-scoped access.
+- Implement backup, restore, retention, and deletion procedures for control plane data.
 - Run end-to-end acceptance with LangSmith and OpenTelemetry sources.
-- Run one end-to-end flow through Slack or Linear approval notification.
+- Run an end-to-end flow through Slack or Linear approval notifications.
 
 ## MVP completion definition
 
-The MVP is complete after Phase 10 when a company can:
+The MVP is complete after Phase 10 when a team can:
 
-1. register a workflow and opt in a trace source;
-2. receive a useful batch behavior report;
-3. inspect evidence for successful or failed abnormal behavior;
-4. approve a human-edited YAML scenario drafted by Prime Agent;
-5. run a repeated, isolated baseline-versus-candidate experiment in Lab or
-   BYOVM compute;
-6. reconnect to the live Textual workspace;
-7. inspect immutable, neutral results at every level;
-8. make its own release decision from the evidence.
+1. Register a workflow and connect a trace source.
+2. Receive a batch behavior report.
+3. Inspect evidence for successful or failed anomalous behavior.
+4. Approve a human-edited YAML scenario drafted by Prime Agent.
+5. Run a repeated, isolated baseline-versus-candidate experiment in Lab or BYOVM compute.
+6. Reconnect to the live Textual workspace.
+7. Inspect immutable, neutral results at every level.
+8. Make independent release decisions based on the evidence.
 
 # Interface direction after the terminal MVP
 
-This section preserves the approved UI reference. It does not authorize a new
-web interface during Phases 8–10.
+This section preserves the approved UI reference for future web development. It does not authorize a new web interface during Phases 8 to 10.
 
 ## Product interface concept
 
-Build a **simulation workbench**, not a generic observability dashboard. The
-four primary areas remain Insights, Scenarios, Experiments, and Admin. Use
-compact tables and evidence panels. Use progressive disclosure for raw traces.
-Keep provenance visible:
+Build a **simulation workbench**, not a generic observability dashboard. The four primary areas are Insights, Scenarios, Experiments, and Admin. Use compact tables and evidence panels with progressive disclosure for raw traces. Keep provenance visible:
 
 ```text
 source evidence -> behavior insight -> scenario -> experiment -> iteration -> result
 ```
 
-Each step shows its status, version, stable identifier, and backward links.
+Each step displays its status, version, stable identifier, and backward links.
 
 ## UI reference and implementation system
 
-- Use [Kumo](https://kumo-ui.com/) as the first React component and visual
-  system when a web interface is approved.
-- Verify the current Kumo version, accessibility, and React/Tailwind
-  compatibility at implementation time.
-- Use Kumo components where they meet the behavior. Build project-owned
-  components from accessible primitives where needed.
-- Use [TanStack Table](https://tanstack.com/table/latest) behavior with Kumo
-  styling for advanced data grids.
-- If Kumo blocks two or more core requirements, evaluate
-  [shadcn/ui](https://ui.shadcn.com/) with accessible primitives and TanStack
-  Table.
-- Use [Paper](https://paper.design/) as the shared visual workbench, not as the
-  production component library or behavior source of truth.
-- Use the [Paper MCP workflow](https://paper.design/docs/mcp) to inspect an
-  accepted frame before implementation.
-- Use [Transitions.dev](https://transitions.dev/) as the motion reference for a
-  future web interface, not as a component library or a reason to animate every
-  state change. Adapt selected recipes to Simulate's interaction language and
-  project-owned motion tokens.
-- Keep Simulate's own identity. Do not copy Cloudflare or an observability
-  vendor's brand.
+- Use [Kumo](https://kumo-ui.com/) as the primary React component and visual system when a web interface is approved.
+- Verify the current Kumo version, accessibility, and React/Tailwind compatibility at implementation time.
+- Use Kumo components where they meet requirements. Build project-owned components from accessible primitives where needed.
+- Use [TanStack Table](https://tanstack.com/table/latest) with Kumo styling for advanced data grids.
+- If Kumo blocks core requirements, evaluate [shadcn/ui](https://ui.shadcn.com/) with accessible primitives and TanStack Table.
+- Use [Paper](https://paper.design/) as the shared visual workbench, not as the production component library or behavioral source of truth.
+- Use the [Paper MCP workflow](https://paper.design/docs/mcp) to inspect accepted designs before implementation.
+- Use [Transitions.dev](https://transitions.dev/) as the motion reference for future web interfaces. Adapt selected recipes to Simulate's interaction language and motion tokens.
+- Preserve Simulate's brand identity rather than copying external vendors.
 
 For each future web slice:
 
-1. define the user decision, data, actions, states, and evidence;
-2. explore two or three layouts with realistic synthetic content;
-3. accept desktop and narrow layouts plus loading, empty, error, partial, and
-   permission states;
-4. inspect the selected Paper frame;
-5. translate it into Kumo and project-owned components;
-6. verify keyboard behavior, focus, overflow, responsiveness, and visual match;
-7. record lasting token and interaction decisions here or in code.
+1. Define the user decision, data, actions, states, and evidence.
+2. Explore two or three layouts with realistic synthetic content.
+3. Accept desktop and narrow layouts plus loading, empty, error, partial, and permission states.
+4. Inspect the selected Paper design frame.
+5. Translate the design into Kumo and project-owned components.
+6. Verify keyboard navigation, focus management, overflow, responsiveness, and visual fidelity.
+7. Record lasting token and interaction decisions in documentation or code.
 
 ## Interface rules
 
-- Optimize for evidence density and calm hierarchy, not decorative cards.
+- Optimize for evidence density and clear hierarchy over decorative cards.
 - Use restrained typography and semantic status colors.
-- Never use color as the only status signal.
-- Keep important evidence out of tooltips.
-- Use banners for states that need attention and toasts for completed background
-  work.
+- Never use color as the sole status indicator.
+- Keep critical evidence out of tooltips.
+- Use banners for states requiring attention and toasts for completed background tasks.
 - Require confirmation for production-facing decisions.
-- Show loading, empty, partial, error, cancelled, and complete states.
-- Keep all actions reachable by keyboard.
+- Display loading, empty, partial, error, cancelled, and complete states.
+- Keep all actions accessible by keyboard.
 - Do not expose raw secrets or unrestricted trace payloads.
 
 ## Learned interface language
 
-The accepted Textual workbench establishes Simulate's interface character. Use
-these principles for later terminal work and translate them to a future web
-interface instead of replacing them with a generic software dashboard.
+The accepted Textual workbench establishes Simulate's interface character. Use these principles for future terminal work and translate them to a future web interface.
 
 ### Visual character
 
-- Treat the interface as a focused work tool: quiet, precise, and centered on
-  evidence. The event timeline and visible provenance are its signature.
-- Use true black as the main working surface, charcoal for focus and selection,
-  soft white for primary text, and gray for secondary information.
-- Reserve muted yellow for warnings and approvals, and red for failures. Do not
-  introduce a general-purpose bright accent color.
-- Build hierarchy with spacing, alignment, text weight, and thin rules. Prefer
-  open rows and continuous work surfaces over nested panels and card grids.
-- Do not add gradients, ornamental shadows, decorative charts, or rounded
-  containers without a specific information or interaction need.
-- Keep typography compact and editorial. A future web interface can use a
-  deliberate type pairing, but it must preserve the terminal's direct,
-  focused tone rather than adopt a generic software-service style.
+- Treat the interface as a focused tool: quiet, precise, and centered on evidence. The event timeline and visible provenance are central.
+- Use true black as the main background, charcoal for focus and selection, soft white for primary text, and gray for secondary information.
+- Reserve muted yellow for warnings and approvals, and red for failures. Avoid general-purpose bright accent colors.
+- Build hierarchy with spacing, alignment, font weight, and thin divider rules. Prefer open rows over nested cards.
+- Avoid gradients, ornamental shadows, decorative charts, or rounded containers without specific functional needs.
+- Keep typography compact and editorial.
 
-The current terminal palette is a reference, not a requirement for identical
-web color values: black `#000000`, focus charcoal `#202020`, primary white
-`#f2f2f2`, secondary gray `#a0a0a0`, warning yellow `#e5c558`, and failure red
-`#ef5b5b`.
+The terminal reference palette includes: black `#000000`, focus charcoal `#202020`, primary white `#f2f2f2`, secondary gray `#a0a0a0`, warning yellow `#e5c558`, and failure red `#ef5b5b`.
 
 ### Interaction character
 
-- Ask for one decision at a time during setup, then show one compact review
-  before execution. Do not display a wall of fields when the choices have a
-  useful order.
-- Keep the main evidence stream visually dominant. Context and details may move
-  to secondary rails, but the primary row must retain identity, source, status,
-  and meaning when those rails are hidden.
-- Make keyboard focus unmistakable. While a text field has focus, printable
-  keys belong to that field and must not activate global shortcuts.
-- Keep shortcuts visible in a quiet footer. Use the same action name in the
-  shortcut, control, status message, and documentation.
-- Prefer immediate, stable state changes. Add motion only when it explains
-  progress, continuity, or a change of location.
-- Design narrow layouts as complete interfaces, not clipped desktop views.
-  Remove secondary controls and decoration before removing evidence.
+- Ask for one decision at a time during setup, then show a compact review before execution.
+- Keep the main evidence stream visually dominant. Context and details can move to secondary sidebars.
+- Make keyboard focus clear. While a text field has focus, printable keys belong to that field and do not trigger global shortcuts.
+- Keep shortcuts visible in a footer. Use identical action names across shortcuts, controls, status messages, and documentation.
+- Prefer immediate, stable state changes. Use motion only when it clarifies progress, continuity, or location changes.
+- Design narrow layouts as complete interfaces rather than clipped desktop views.
 
 ### Motion language
 
-Transitions.dev demonstrates a useful system rather than a visual identity:
-small, self-contained transitions use one shared scale for duration, easing,
-distance, scale, and blur. Simulate should adopt that consistency and restraint,
-not copy the full catalog.
-
-- Use motion to preserve spatial continuity when a person opens evidence,
-  moves between a list and detail view, advances through ordered setup, or sees
-  an asynchronous action reach a new state.
-- Prefer the lowest-overhead matching pattern. Likely patterns are origin-aware
-  menus, restrained panel and disclosure reveals, list-to-detail page movement,
-  tab-indicator movement, skeleton-to-content reveals, and quiet toast entry.
-- Keep evidence stable while it is being read. Do not animate append-only
-  timeline rows, changing metrics, failures, or evaluator results merely to
-  attract attention. Never delay access to evidence until an animation ends.
-- Exclude celebratory, game-like, and ornamental effects such as confetti,
-  particle bursts, slot-machine counters, pointer tilt, glare, smoky dissolves,
-  looping shimmer, strong bounce, and error shaking. Status text, markers, and
-  focus treatment must carry meaning without motion.
-- Define a small project-owned token scale at implementation time. Start from
-  quick `150ms`, fast `250ms`, medium `350ms`, and slow `400ms` durations, with
-  a smooth deceleration curve for surfaces that open, close, or change
-  position. Match tokens by purpose, not by the nearest numeric value.
-- Open transitions may be slightly slower than close transitions. Tooltips and
-  transient controls should leave immediately. Avoid stagger when it would
-  postpone scanning a table, timeline, comparison, or error list.
-- Animate only `transform`, `opacity`, and, when necessary, a small blur. Do not
-  use `transition: all`; name each changing property and use `will-change`
-  sparingly.
-- Every animated behavior must honor `prefers-reduced-motion: reduce` with an
-  immediate state change and no movement, scale, or blur. The same content,
-  state, keyboard operation, focus destination, and ARIA state must remain
-  available when motion is off.
-- Before adopting a Transitions.dev recipe, inspect its current CSS and React
-  behavior, remove demo-specific styling, and verify reduced motion, keyboard
-  focus, interruption, repeated activation, narrow layouts, and lower-end
-  device performance.
+- Use motion to preserve spatial continuity when opening evidence, navigating lists, advancing through setup steps, or updating asynchronous states.
+- Choose low-overhead patterns: origin-aware menus, subtle panel disclosures, list-to-detail transitions, and quiet toast entries.
+- Keep evidence stable while reading. Do not animate timeline rows, changing metrics, failures, or evaluator results solely to attract attention. Never block access to evidence with running animations.
+- Exclude game-like or ornamental effects (confetti, particle bursts, slot-machine counters, pointer tilt, looping shimmers, bounce effects).
+- Define a project token scale at implementation time (such as `150ms`, `250ms`, `350ms`, `400ms`) with smooth deceleration easing.
+- Respect `prefers-reduced-motion: reduce` with immediate state changes and no transform or blur effects. Maintain identical content, keyboard behavior, and ARIA attributes when motion is disabled.
 
 ### Interface copy
 
-- Use short lowercase labels for events, statuses, commands, and compact
-  controls. Use sentence case for instructions, explanations, and errors.
-- Write plain operational copy. Name what happened, what is running, or what the
-  person can do next. Do not use slogans or conversational filler.
-- Make an error state identify the failed check and give one direct next step.
-- Let each label do one job. Do not repeat the same metadata in several nearby
-  panels only to fill space.
+- Use short lowercase labels for events, statuses, commands, and compact controls. Use sentence case for instructions, explanations, and errors.
+- Write plain operational copy stating what happened, what is running, or what action you can take next.
+- Make error messages identify the failed check and provide one clear next step.
+- Ensure each label has a single distinct purpose.
 
 # Future improvements — not approved for implementation
 
-These items are concrete but outside the core MVP or need a larger decision.
+These items are concrete proposals outside the core MVP scope.
 
 ## Generated scenario assurance — High
 
-**Problem:** Agent-generated scenarios can be impossible, underspecified, or
-scored by evaluators that accept the wrong behavior. One successful agent run
-does not prove that a task or evaluator is sound.
+**Problem:** Agent-generated scenarios can be impossible, underspecified, or scored by evaluators that accept incorrect behavior. A single successful agent run does not prove task or evaluator validity.
 
-**Evidence:** Z.ai's GLM-5.3 post describes research agents that turn real-work
-patterns into runnable environments, a separate judge agent that attempts each
-task, verifiers synthesized without the reference solution, and oracle, no-op,
-and unsolved-state checks. The post reports the method but does not publish
-false-pass rates or enough detail for independent reproduction.
+**Direction:** After Phase 9 produces realistic drafts, validate each candidate in its declared disposable environment. Keep scenario generation, solvability attempts, and evaluator creation as separate recorded roles. Present successful and failed attempts, environment failures, evaluator checks, provenance, and unresolved questions to the human reviewer. Measure false passes and false failures before expanding automation.
 
-**Direction:** After Phase 9 produces realistic drafts, validate each candidate
-in its declared disposable environment. Keep scenario generation, solvability
-attempts, and evaluator creation as separate recorded roles. Give evaluator
-generation no access to the reference result. Present successful and failed
-attempts, environment failures, evaluator checks, provenance, and unresolved
-questions to the human reviewer. Measure false passes and false failures before
-expanding automation.
-
-**Why later:** Phase 8 must first provide stable environment, execution,
-evaluator, and evidence contracts. Automated assurance supports human review;
-it must not publish a scenario or start a customer experiment by itself.
+**Why later:** Phase 8 must first establish stable environment, execution, evaluator, and evidence contracts. Automated assurance supports human review; it cannot publish scenarios or start customer experiments independently.
 
 ## Evaluator shortcut detection — Medium
 
-**Problem:** A workflow can satisfy an evaluator without completing the intended
-task. Examples include doing nothing against a pre-solved state, copying
-expected text, completing only one step, changing evaluator-visible files, or
-using an undeclared external service.
+**Problem:** A workflow can satisfy an evaluator without completing the intended task (for example: doing nothing against a pre-solved state, copying expected text, completing only one step, or modifying evaluator-visible files).
 
-**Evidence:** The GLM-5.3 post states that solver trajectories are used to find
-and close reward shortcuts before verifiers provide training reward. Simulate
-does not train with rewards, so the equivalent risk is an evaluator shortcut
-that creates false experiment evidence.
+**Direction:** Retain failed and suspicious attempt trajectories. Use them to generate adversarial evaluator checks for empty output, missing state changes, partial completion, copied text, forbidden access, pre-existing success state, and evaluator manipulation. Version accepted negative cases with the evaluator.
 
-**Direction:** Retain failed and suspicious attempt trajectories. Use them to
-generate adversarial evaluator checks for empty output, no state change,
-partial completion, copied expected text, forbidden access, pre-existing
-success state, and evaluator-state manipulation. Require deterministic checks
-where possible and version every accepted negative case with the evaluator.
-
-**Why later:** Phase 8 includes a small fixed set of evaluator checks. A
-trajectory-driven attack pipeline needs enough approved scenarios and completed
-runs to measure whether it finds real defects without creating noisy review
-work.
+**Why later:** Phase 8 includes a fixed set of evaluator checks. Trajectory-driven adversarial testing requires sufficient approved scenarios and runs to evaluate effectiveness without generating noisy reviews.
 
 ## OpenTelemetry GenAI semantic interoperability — High
 
-**Problem:** The current telemetry allowlist does not map every model, agent,
-tool, and MCP field to the shared OpenTelemetry semantic conventions.
+**Problem:** The current telemetry allowlist does not map every model, agent, tool, and MCP field to shared OpenTelemetry semantic conventions.
 
-**Evidence:** OpenTelemetry now defines GenAI, agent, and MCP conventions.
-Phoenix and other tools accept OTLP and OpenInference data.
+**Direction:** After Phase 9 establishes direct OpenTelemetry intake, version a privacy-reviewed mapping and migration. Dual-write during the transition.
 
-**Direction:** After Phase 9 proves direct OpenTelemetry intake, version a
-privacy-reviewed mapping and migration. Dual-write during the transition.
-
-**Why later:** A field migration affects stored evidence, privacy review, and
-external consumers. Direct OTLP intake is core; full semantic convergence is
-not.
+**Why later:** Field migrations affect stored evidence, privacy reviews, and external consumers. Direct OTLP intake is core; full semantic convergence is a follow-up enhancement.
 
 ## Durable multi-worker orchestration — Medium
 
-**Problem:** Runner leases and reconnect support durable remote experiments, but
-they do not provide general multi-worker workflow recovery and orchestration.
+**Problem:** Runner leases and reconnect protocols support durable remote experiments, but do not provide general multi-worker workflow recovery and orchestration.
 
-**Evidence:** Temporal and Hatchet provide persisted histories, retries, leases,
-and worker coordination.
+**Direction:** Measure Phase 8 failure and throughput characteristics. Define persisted state machines, retry policies, cancellation handlers, and idempotency contracts before choosing an orchestrator (such as Temporal or Hatchet).
 
-**Direction:** Measure Phase 8 failure and throughput behavior. Define the
-persisted state machine, retry, cancellation, and idempotency contracts before
-choosing an orchestrator.
-
-**Why later:** This is an operations architecture change. It is not required to
-prove the single-experiment product loop.
+**Why later:** This represents an operational architecture change not required to validate the single-experiment loop.
 
 ## Automatic Prime Agent remediation — Low
 
-**Problem:** A mature system could investigate, simulate, patch, and validate a
-workflow with little operator work.
+**Problem:** An automated system could investigate, simulate, patch, and validate workflows with minimal operator intervention.
 
-**Evidence:** Current coding agents can inspect repositories and use disposable
-cloud workspaces.
+**Direction:** Allow Prime Agent to propose patches and experiments inside a sandbox, then require human review for code changes, scenario publication, execution, and release.
 
-**Direction:** Let Prime Agent propose a patch and experiments inside a sandbox,
-then require human review for code, scenario, execution, and release.
-
-**Why later:** Automatic remediation materially expands autonomy and product
-scope. The MVP must first prove insight quality and experiment trust.
+**Why later:** Automatic remediation expands autonomy and product scope. The MVP must first establish insight quality and experiment trust.
 
 ## Automatic deployment — Low
 
-**Problem:** Teams can act faster if accepted evidence connects to release
-systems.
+**Problem:** Teams can act faster if accepted evidence connects directly to release systems.
 
-**Direction:** Export stable result status and evidence to customer CI or
-deployment policy. Keep the decision customer-owned.
+**Direction:** Export stable result statuses and evidence to customer CI or deployment pipelines. Keep deployment decisions owned by the customer.
 
-**Why later:** Simulate is an evidence system. Deployment control is a separate
-high-risk capability.
+**Why later:** Simulate is an evaluation and evidence system. Deployment control is a separate high-risk capability.
 
 ## Partial experiment recovery — Low
 
-**Problem:** Large experiments can waste completed work after a lease or runner
-failure.
+**Problem:** Large experiments can waste completed work after a lease or runner failure.
 
-**Direction:** Add immutable per-iteration commits and resumable experiment
-aggregation only after the result semantics are proven.
+**Direction:** Add immutable per-iteration commits and resumable experiment aggregation after result semantics are proven.
 
-**Why later:** The MVP intentionally discards incomplete results. Recovery adds
-complex state, cancellation, and statistical rules.
+**Why later:** The MVP intentionally discards incomplete results to ensure statistical integrity. Recovery introduces complex state, cancellation, and aggregation rules.
 
 ## Learned feedback from review actions — Low
 
 **Problem:** Dismissals and edits could improve insight selection over time.
 
-**Direction:** Study explicit, consented feedback with a transparent evaluation
-set before any training or ranking use.
+**Direction:** Study explicit, consented feedback with a transparent evaluation dataset before using data for ranking or training.
 
-**Why later:** The MVP stores dismissal reasons for audit, not model training.
+**Why later:** The MVP stores dismissal reasons for audit purposes, not model training.
 
 ## Organization roles — Low
 
-**Problem:** Larger customers may need separate viewer, editor, approver, and
-infrastructure roles.
+**Problem:** Larger customers may require separate viewer, editor, approver, and infrastructure roles.
 
-**Direction:** Add the smallest roles shown necessary by real access patterns.
+**Direction:** Add fine-grained roles based on observed access patterns.
 
-**Why later:** All members are administrators for the MVP. Speculative RBAC
-would slow the core workflow.
+**Why later:** All project members have administrative permissions for the MVP. Speculative RBAC would slow core development.
 
 ## Web workbench — Medium
 
-**Problem:** Some teams will prefer a shared browser interface to SSH and a
-terminal workspace.
+**Problem:** Some teams prefer a shared browser interface over SSH and terminal workspaces.
 
-**Direction:** Apply the Kumo and Paper design system above to the same
-control-plane API after the terminal MVP is validated. Begin with a read-only
-runtime viewer that consumes the Phase 8 workflow topology, actor-attributed
-events, retrieval provenance, and Result contracts. Show the User Agent and
-Scenario Agent in separate lanes with their own tools and context boundaries.
-Do not create another execution engine or add browser-only evidence semantics.
+**Direction:** Apply Kumo and Paper design systems to the control plane API after the terminal MVP is validated. Begin with a read-only runtime viewer consuming Phase 8 workflow topology, actor-attributed events, retrieval provenance, and Result contracts. Display User Agent and Scenario Agent in separate lanes with their own tools and context boundaries.
 
-**Why later:** A new web application would duplicate product-surface work before
-the experiment and discovery contracts stabilize.
+**Why later:** A web application would duplicate product-surface work before experiment and discovery contracts stabilize.
 
 # Upstream patterns and product decisions
 
-No upstream implementation has been copied. These projects inform specific
-local patterns:
+These projects inform specific architectural patterns:
 
 | Source | Pattern used or reserved |
 | --- | --- |
 | [Inspect](https://inspect.aisi.org.uk/) and [SWE-bench](https://www.swebench.com/) | Keep scenario data, execution, and evaluation separate. |
-| [OpenHands SDK](https://docs.openhands.dev/sdk/) | Separate the agent, workspace, event stream, and client UI. Rich and Textual consume the same events. |
-| [Playwright traces](https://playwright.dev/docs/trace-viewer) | Package inspectable evidence with a result instead of reporting an unsupported claim. |
-| [Pydantic AI message history](https://pydantic.dev/docs/ai/core-concepts/message-history/) and [toolsets](https://pydantic.dev/docs/ai/tools-toolsets/) | Give each agent a separate typed context, persisted server-owned history, and filtered toolset. Treat compacted summaries as derived context. |
-| [Pydantic AI RAG example](https://pydantic.dev/docs/ai/examples/data-analytics/rag/) | Retrieve bounded, versioned business knowledge through project-owned retrieval and citation contracts; do not treat model context as authoritative state. |
-| [Pydantic AI durable execution](https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/) | Use deferred model and tool boundaries where useful, but keep Simulate's control plane authoritative for leases, retries, approvals, idempotency, and cleanup. |
+| [OpenHands SDK](https://docs.openhands.dev/sdk/) | Separate agent, workspace, event stream, and client UI. Rich and Textual consume identical events. |
+| [Playwright traces](https://playwright.dev/docs/trace-viewer) | Package inspectable evidence with results instead of reporting unsupported claims. |
+| [Pydantic AI message history](https://pydantic.dev/docs/ai/core-concepts/message-history/) and [toolsets](https://pydantic.dev/docs/ai/tools-toolsets/) | Give each agent separate typed context, persisted server-owned history, and filtered toolsets. Compacted summaries remain derived artifacts. |
+| [Pydantic AI RAG example](https://pydantic.dev/docs/ai/examples/data-analytics/rag/) | Retrieve bounded, versioned business knowledge through retrieval and citation contracts. Do not treat model context as authoritative state. |
+| [Pydantic AI durable execution](https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/) | Use deferred model and tool boundaries where appropriate, keeping Simulate's control plane authoritative for leases, retries, approvals, idempotency, and cleanup. |
 | [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence) | Use persisted checkpoints and explicit human interrupts for controlled workflows. |
 | [LangSmith Insights](https://docs.langchain.com/langsmith/insights) | Discover usage patterns and agent behaviors, then inspect supporting traces and measurements. |
-| [LangSmith experiments](https://docs.langchain.com/langsmith/evaluation) and [comparison](https://docs.langchain.com/langsmith/compare-experiment-results) | Move traces into datasets and experiments; compare scenario results, traces, cost, and latency. |
+| [LangSmith experiments](https://docs.langchain.com/langsmith/evaluation) and [comparison](https://docs.langchain.com/langsmith/compare-experiment-results) | Move traces into datasets and experiments. Compare scenario results, traces, cost, and latency. |
 | [LangSmith repetitions](https://docs.langchain.com/langsmith/repetition) | Repeat stochastic evaluations and show mean and standard deviation. |
 | [Braintrust Topics](https://www.braintrust.dev/foundations/analyzing-production-logs) | Cluster production logs into named, reviewable behavior categories. |
-| [Braintrust experiments](https://www.braintrust.dev/docs/evaluate/run-evaluations) | Preserve immutable experiment trials and compare them without hiding examples. |
+| [Braintrust experiments](https://www.braintrust.dev/docs/evaluate/run-evaluations) | Preserve immutable experiment trials and compare them without hiding individual examples. |
 | [Phoenix experiments](https://arize.com/docs/phoenix/get-started/ts-get-started-datasets-and-experiments) | Inspect experiments and examples side by side. |
-| [Langfuse annotation queues](https://langfuse.com/docs/evaluation/evaluation-methods/annotation-queues) | Preserve a human review step for selected production evidence. |
-| [OCI image specification](https://oci-playground.github.io/specs-latest/specs/image/v1.1.0-rc2/oci-image-spec.pdf) | Use content digests as immutable executed image identity. |
-| [GitHub self-hosted runners](https://docs.github.com/en/actions/reference/runners/self-hosted-runners) | Prefer ephemeral runners for untrusted or isolated work. |
+| [Langfuse annotation queues](https://langfuse.com/docs/evaluation/evaluation-methods/annotation-queues) | Preserve human review steps for selected production evidence. |
+| [OCI image specification](https://oci-playground.github.io/specs-latest/specs/image/v1.1.0-rc2/oci-image-spec.pdf) | Use content digests as immutable executed image identities. |
+| [GitHub self-hosted runners](https://docs.github.com/en/actions/reference/runners/self-hosted-runners) | Prefer ephemeral runners for untrusted or isolated workloads. |
 | [E2B networking](https://e2b.dev/docs/api-reference/sandboxes/create-sandbox) | Make sandbox network access explicit and allowlisted. |
 | [Temporal](https://docs.temporal.io/workflows) and [Hatchet](https://docs.hatchet.run/) | Reserve general durable orchestration until the local state machine is proven. |
-| [GLM-5.3](https://z.ai/blog/glm-5.3) | Treat generated environments as executable units of expert work; separate generation, solvability attempts, and evaluator checks; use solver trajectories to find evaluator shortcuts. Keep human approval and neutral results. |
+| [GLM-5.3](https://z.ai/blog/glm-5.3) | Treat generated environments as executable units of expert work. Separate generation, solvability attempts, and evaluator checks. Use solver trajectories to identify evaluator shortcuts. |
 
 ## Explicit implementation choices
 
-- Keep Textual. Do not add OpenTUI and a second TypeScript or Bun runtime only
-  for terminal presentation.
-- Keep one simulator event stream and plugin seam. Do not fork the execution
-  engine for Rich, Textual, API, or future web clients.
-- Use separate Pydantic AI agents, typed dependencies, histories, and toolsets
-  for the User Agent and Scenario Agent. Coordinate them in Simulate domain
-  code; do not expose either agent as the other's unrestricted tool.
-- Keep authoritative environment state, retrievable knowledge, conversation
-  memory, derived summaries, and hidden evaluator evidence as separate data
-  classes.
-- Do not fork a full external agent runtime. Borrow stable boundaries and
-  protocols.
-- Do not add Temporal or Hatchet before Phase 8 defines experiment states,
-  leases, retry, cancellation, event offsets, and cleanup.
-- Do not turn results into recommendations. Product value comes from realistic
-  scenarios, controlled runs, inspectable evidence, and a good workflow.
+- Keep Textual. Avoid adding OpenTUI or a second TypeScript/Bun runtime solely for terminal presentation.
+- Maintain one simulator event stream and plugin interface. Do not fork execution engines across Rich, Textual, API, or web clients.
+- Use separate Pydantic AI agents, typed dependencies, histories, and toolsets for the User Agent and Scenario Agent. Coordinate them in domain code; do not expose either agent as an unrestricted tool of the other.
+- Maintain authoritative environment state, retrievable knowledge, conversation memory, derived summaries, and hidden evaluator evidence as separate data classes.
+- Avoid forking external agent runtimes; borrow stable boundaries and protocols.
+- Avoid adding Temporal or Hatchet before Phase 8 defines experiment states, leases, retries, cancellations, event offsets, and cleanup.
+- Do not convert results into automated recommendations. Value comes from realistic scenarios, controlled runs, inspectable evidence, and clear workflows.

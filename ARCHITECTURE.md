@@ -2,11 +2,13 @@
 
 This document describes the technical architecture of Simulate, how the control plane and execution plane communicate, and how sandboxes run investigations.
 
+**Status:** The Phase 8 MVP is complete: merged to `main` in merge commit `7b3c01a` (August 23, 2026; Linear THE-18) and verified live against a real Modal sandbox on August 26, 2026. The full Phase 8 business world compiler and experiment engine remain in progress (roadmap sub-phases 8.0 through 8.8).
+
 For milestone scopes and delivery requirements, see [`BUILD_ROADMAP.md`](file:///Users/king/Desktop/simulate/BUILD_ROADMAP.md).
 
 ## 1. Product overview
 
-Simulate provides isolated, resettable copies of business environments to investigate agent failures and test agent updates before production release.
+Simulate provides isolated, resettable copies of business environments. Teams use Simulate to investigate agent failures and test agent updates before releasing code to production.
 
 Simulate performs two primary tasks:
 
@@ -20,7 +22,7 @@ Simulate measures agent performance using objective metrics rather than generic 
 - **Tool execution:** Correct tool selection and reduced tool errors.
 - **Efficiency:** Token consumption and turn counts per task.
 - **Escalation policy:** Timely escalation to human reviewers according to business rules.
-- **Task completion:** Verified final state matches expected database invariants.
+- **Task completion:** Verified final state matching expected database invariants.
 - **Cost:** Monetary cost per successful task.
 
 ### Core investigation loop
@@ -43,7 +45,7 @@ Production alert or selected trace
 
 ## 2. System planes
 
-Simulate separates long-term data storage from ephemeral compute:
+Simulate separates long-term data storage from ephemeral compute.
 
 ```mermaid
 flowchart LR
@@ -68,7 +70,7 @@ flowchart LR
     end
 
     LS -- "Trace reference" --> API
-    UI <-- "WebSocket / SSE" --> API
+    UI <-- "SSE" --> API
     API --> PG
     API -- "Launch sandbox" --> PA
     SEC -. "Inject credentials" .-> PA
@@ -87,9 +89,9 @@ The control plane stores organizations, projects, workflows, traces, event logs,
 
 ### Execution plane (Disposable sandboxes)
 
-The execution plane runs ephemeral workloads. Each investigation runs inside an isolated cloud container (a Modal sandbox). The sandbox destroys itself after the investigation finishes.
+The execution plane runs ephemeral workloads. Each investigation runs inside an isolated cloud container using a Modal sandbox. The sandbox destroys itself after the investigation finishes.
 
-The runner interface is provider-neutral. While Modal is the primary runner for Phase 8, the interface supports future VM backends (such as Hetzner or customer-provided VMs) without changing control-plane code.
+The runner interface is provider-neutral. While Modal is the primary runner for Phase 8, the interface supports future VM backends without changing control plane code.
 
 ---
 
@@ -123,13 +125,29 @@ sequenceDiagram
 
 ### Live chat and event streaming
 
-Inside the sandbox, a lightweight runner bridge listens for incoming control-plane messages. The runner relays messages to Prime Agent's RPC interface:
+Inside the sandbox, a runner bridge daemon listens for incoming control plane messages. The runner relays messages to Prime Agent through its RPC interface:
 
 - `prompt`: Starts a new investigation turn.
-- `steer`: Adjusts the agent's behavior during an active turn.
+- `steer`: Adjusts agent behavior during an active turn.
 - `follow_up`: Queues a question for the next turn.
 
-Prime Agent emits JSONL events as it works. The runner bridge streams these events to the FastAPI backend, which saves them to PostgreSQL and broadcasts them to clients over WebSocket or Server-Sent Events (SSE).
+Prime Agent emits JSONL events during execution. The runner bridge streams these events to the FastAPI backend. The backend persists the events to PostgreSQL and broadcasts them to clients over Server-Sent Events (SSE), with `Last-Event-ID` replay from PostgreSQL for reconnecting clients.
+
+### Implemented Phase 8 MVP behavior
+
+The Modal investigation MVP is implemented and live-verified as of August 26, 2026. This is what exists today:
+
+- **In-sandbox bridge loop:** `SandboxBridge.run()` starts the World Gateway on loopback, then spawns `prime-agent --mode rpc --no-session`. It sends the task brief as the first typed `prompt` command, long-polls the control-plane inbox, relays `prompt`/`steer`/`follow_up` messages, reads Prime Agent stdout, maps official events to typed domain events, and batches them (at most 50 events or every 500 milliseconds) to `POST /internal/events`.
+- **Typed RPC contract:** Commands use the official shape `{"type": "...", "message": "..."}`. Official `response` lines are filtered so they never become false domain events; a rejected command is a visible fatal error. The official `{"type":"abort"}` command is used by the watchdog.
+- **Completion rule:** A run completes cleanly only after both a valid `summary.submit` (persisted exactly once) and the fresh `agent_end` corresponding to the current run have occurred. Failures emit a visible `error` event and clean up resources.
+- **Binding tool watchdog:** The bridge tracks official `tool_execution_start`/`tool_execution_end` events by `toolCallId`. A tool execution that runs past the configured bridge tool timeout is aborted once via the official RPC `abort` command; a `warning` event is persisted; any stale `agent_end` is invalidated; and one bounded recovery steer asks Prime to submit its summary without retrying the timed-out operation. The watchdog fires on whichever comes first: the per-tool age, or the overall run cutoff the bridge derives from the injected sandbox lifetime (`SANDBOX_TIMEOUT_S` − recovery − reserve). The run cutoff covers tools that start late in the run (measured live: hung tool at ~140s of a 300s run) where per-tool age alone would leave no room to recover and flush before Modal kills the container; the recovery deadline is bounded to `SANDBOX_TIMEOUT_S` − reserve so flush and child cleanup fit. If a valid summary plus fresh `agent_end` does not arrive within the recovery timeout, the run fails deterministically rather than faking completion. Watchdog values flow from `Settings` through `SandboxSpec` into the container env (`TOOL_TIMEOUT_S`/`TOOL_RECOVERY_TIMEOUT_S`/`SANDBOX_TIMEOUT_S`) and into the bridge; `SandboxSpec` validation rejects budgets that cannot fit the outer lifetime.
+- **Separated authority:** Control-plane authority (`BRIDGE_TOKEN`) and World Gateway authority (a per-run loopback `WORLD_GATEWAY_TOKEN` generated in the bridge) are separate. Prime Agent receives only `WORLD_GATEWAY_TOKEN`. Prime Agent launches under a deliberately sanitized child environment (`build_child_env()`) that passes only runtime basics, model-provider credentials, and gateway wiring — `BRIDGE_TOKEN`, `CONTROL_PLANE_CALLBACK_URL`, task/control-plane data, database credentials, and unrelated secrets are excluded. This prevents Prime/IPython from reaching the control-plane endpoints directly.
+- **World Gateway:** A loopback FastAPI service exposing exactly nine approved tool routes with Bearer-token authentication. A Prime Agent extension (`world_gateway.ts`) registers the tools under identifier-safe aliases, calls the gateway over loopback HTTP with a bounded per-call timeout, and returns sanitized results without exposing the token, environment, or headers. The gateway context carries only truthful metadata the bridge can prove; state, evidence, and diff data that is not compiled returns an explicit unavailable result instead of invented defaults.
+- **Event transport:** The control plane streams persisted events to CLI and API clients over Server-Sent Events (SSE), not WebSocket.
+- **Security boundary:** The World Gateway binds to `127.0.0.1`. Modal enforces an explicit outbound domain allowlist that must include the control-plane host and the model-provider host. Caller-supplied reserved environment and secret keys are rejected, and only a SHA-256 hash of the bridge token is persisted.
+- **Model credentials:** The verified live path maps standard OpenAI or Anthropic credentials into the sandbox as `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. These provider credentials are propagated into the Prime child environment and remain visible to Prime/IPython; a provider proxy that keeps them out of the agent is future hardening. Prime Agent v0.8.1 requires a custom `models.json` for non-standard OpenAI-compatible providers, so custom `MODEL_BASE_URL` support is not part of the MVP.
+
+The later Phase 8 target architecture in this document — the business world compiler, experiment engine, immutable candidate identity, and the full Textual experiment workspace (roadmap sub-phases 8.0 through 8.8) — is not implemented yet and remains in progress.
 
 ---
 
@@ -146,7 +164,7 @@ A business world model is an executable representation of a business workflow.
 
 ### Environment slices
 
-An investigation does not load the entire business world. It loads an **environment slice** containing only the resources required for the target scenario. For example, a refund investigation loads only the customer record, the order record, the refund policy, and a mocked payment gateway.
+An investigation loads an **environment slice** containing only the resources required for the target scenario. For example, a refund investigation loads only the customer record, the order record, the refund policy, and a mocked payment gateway.
 
 ### World Gateway
 
@@ -185,7 +203,7 @@ Customer agents must implement a standardized interface:
 
 ### Credential handling
 
-Customer model credentials are stored securely in the control plane's secret store. When a sandbox launches, the control plane injects credentials into the container environment. Credentials are never written to event logs, database records, or evidence summaries.
+Customer model credentials remain in the secret store of the control plane. When a sandbox launches, the control plane injects credentials into the container environment. Credentials are never written to event logs, database records, or evidence summaries.
 
 ---
 
@@ -271,6 +289,8 @@ classDiagram
 | User simulator CLI and Textual UI | [`src/app/domain/user_simulator/`](file:///Users/king/Desktop/simulate/src/app/domain/user_simulator/) |
 | Investigation service (Phase 8 MVP) | [`src/app/domain/investigation/`](file:///Users/king/Desktop/simulate/src/app/domain/investigation/) |
 | Cloud runner and Modal adapter (Phase 8 MVP) | [`src/app/domain/runner/`](file:///Users/king/Desktop/simulate/src/app/domain/runner/) |
+| Runner bridge, Prime Agent link, and World Gateway (Phase 8 MVP) | [`src/app/domain/agent_runner/`](file:///Users/king/Desktop/simulate/src/app/domain/agent_runner/) |
+| Investigation CLI commands | [`src/app/cli/investigate.py`](file:///Users/king/Desktop/simulate/src/app/cli/investigate.py) |
 
 ---
 
@@ -278,10 +298,10 @@ classDiagram
 
 | Platform | Category | Relationship to Simulate | Key difference |
 | --- | --- | --- | --- |
-| **Replicas** | Cloud coding-agent VMs | Adjacent | Provides developer VMs for code generation; does not simulate business environments or evaluate agent workflows. |
-| **Moda** | Agent evaluation platform | Closest comparison | Replays scenarios using prompt-based LLM judges; does not execute agents against live tool contracts, databases, or mock APIs. |
-| **Limrun** | Mobile cloud simulators | Adjacent | Runs iOS/Android simulators to verify mobile agents; demonstrates the value of running agents in realistic environments. |
-| **LangSmith / OpenTelemetry** | Observability and tracing | Upstream integration | Detects production anomalies and stores raw traces; Simulate ingests these traces to reproduce and fix issues. |
+| **Replicas** | Cloud coding-agent VMs | Adjacent | Provides developer VMs for code generation. Does not simulate business environments or evaluate agent workflows. |
+| **Moda** | Agent evaluation platform | Closest comparison | Replays scenarios using prompt-based LLM judges. Does not execute agents against live tool contracts, databases, or mock APIs. |
+| **Limrun** | Mobile cloud simulators | Adjacent | Runs mobile simulators to verify mobile agents. Demonstrates the value of running agents in realistic environments. |
+| **LangSmith / OpenTelemetry** | Observability and tracing | Upstream integration | Detects production anomalies and stores raw traces. Simulate ingests these traces to reproduce and fix issues. |
 
 ---
 
@@ -289,9 +309,8 @@ classDiagram
 
 - **Business world:** Versioned description of actors, business rules, tool contracts, and fixture state for a process.
 - **Environment slice:** The minimum subset of a business world required to run a specific scenario.
-- **Investigation:** A single test run: trace reference, environment slice, investigator agent, agent under test, and evidence trail.
+- **Investigation:** A single test run containing a trace reference, environment slice, investigator agent, agent under test, and evidence trail.
 - **Prime Agent:** An autonomous coding and investigation harness developed by Prime Intellect, used to investigate failures.
-- **Runner bridge:** The in-container daemon that relays messages between the control plane and Prime Agent's RPC interface.
+- **Runner bridge:** The in-container daemon that relays messages between the control plane and Prime Agent RPC interface.
 - **World Gateway:** The in-container proxy that enforces permission boundaries and logs all tool interactions.
 - **Evidence:** Immutable logs, state diffs, evaluator checks, and written summaries generated by an investigation.
-

@@ -1,9 +1,7 @@
 # Repository Atlas: Simulate
 
-> 🌐 **Interactive Walkthrough:** View the full interactive Notion-style codebase atlas and architecture flowcharts at [**docs/interactive_codemap.html**](file:///Users/king/Desktop/simulate/docs/interactive_codemap.html) (or [`codemap.html`](file:///Users/king/Desktop/simulate/codemap.html)).
-
 ## Project Responsibility
-Simulate is an agent evaluation and simulation platform for autonomous AI support workflows. It provides deterministic, reproducible sandbox environments, synthetic user simulation, privacy-safe bundle compilation, and cloud runner orchestration (Phase 8 MVP with Modal and Prime Agent RPC).
+Simulate is an agent evaluation and simulation platform for autonomous AI support workflows. It provides deterministic, reproducible sandbox environments, synthetic user simulation, privacy-safe bundle compilation, and cloud runner orchestration. The Phase 8 Modal investigation MVP is complete and live-verified (Prime Agent RPC, World Gateway, SSE event streaming); the full Phase 8 world compiler and experiment engine remain in progress.
 
 ## System Entry Points
 - `src/app/main.py`: FastAPI application factory (`create_app`).
@@ -19,8 +17,8 @@ Simulate is an agent evaluation and simulation platform for autonomous AI suppor
 - **Hexagonal / Clean Architecture:** Thin API and CLI delivery layers calling domain services with pluggable adapters.
 - **Repository Pattern:** `SqlAlchemySupportRepository` and `SqlAlchemyInvestigationRepository` abstract SQL database interactions with PostgreSQL optimizations.
 - **Sandbox Isolation Pattern:** `PostgresSupportSandbox` uses session-level `pg_temp` tables and transaction rollbacks for zero-state leakage.
-- **Cloud Runner & Bridge Pattern:** Provider-agnostic `CloudRunner` protocol with `ModalRunner` Linux sandboxes, dynamic runner resolution (`ModalRunner` vs `FakeRunner`), automatic sandbox termination upon completion, in-container `SandboxBridge` streaming RPC events, and `WorldGatewayService` exposing investigation skill tools.
-- **Investigation Lifecycle & Brief Assembly:** Finite state machine managing investigation status (`pending` -> `provisioning` -> `running` -> `completed`/`failed`/`cancelled`), structured markdown task brief rendering (`brief.py`), token-guarded event ingestion, interactive user steering, and heartbeat silence sweeping.
+- **Cloud Runner & Bridge Pattern:** Provider-agnostic `CloudRunner` protocol with `ModalRunner` Linux sandboxes, dynamic runner resolution (`ModalRunner` vs `FakeRunner`), automatic sandbox termination upon completion, the in-container `SandboxBridge` loop (task brief as the first prompt, inbox polling, batched event flushing, heartbeats, completion only after a valid summary and `agent_end`), `WorldGatewayService` exposing the nine investigation skill tools, and a Prime Agent TypeScript extension mapping those tools over loopback HTTP.
+- **Investigation Lifecycle & Brief Assembly:** Finite state machine managing investigation status (`pending` -> `provisioning` -> `running` -> `completed`/`failed`/`cancelled`), structured markdown task brief rendering (`brief.py`), token-guarded event ingestion, interactive user steering, heartbeat silence sweeping, and SSE streaming of persisted events to reconnect clients.
 - **State Machine / Flow Registry:** Multi-turn conversation workflows registered as `FlowPlugin` instances.
 - **Privacy Allowlist / Denylist:** Zero-credential bundle compiler scrubbing sensitive tokens and PII before artifact emission.
 

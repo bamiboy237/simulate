@@ -1,14 +1,18 @@
 """Live end-to-end smoke verification for Modal investigation runner and Prime Agent.
 
 Usage:
-    SIMULATE_LIVE_E2E=1 uv run python scripts/investigate_smoke.py
+    SIMULATE_LIVE_E2E=1 MODAL_ENABLED=true uv run python scripts/investigate_smoke.py
 
-Skips cleanly when SIMULATE_LIVE_E2E is unset or credentials are absent.
+Skips cleanly when SIMULATE_LIVE_E2E is unset or Modal is disabled.
+Returns nonzero when the run times out, fails, completes without a persisted
+summary, or the Modal sandbox is not terminated. Never prints the bridge
+token or any credential.
 """
 
 import asyncio
 import os
 import sys
+import time
 from uuid import uuid4
 
 from app.config import get_settings
@@ -16,6 +20,7 @@ from app.db import get_session_factory
 from app.domain.investigation.brief import render_task_brief
 from app.domain.investigation.repository import SqlAlchemyInvestigationRepository
 from app.domain.investigation.schemas import (
+    TERMINAL_STATUSES,
     InvestigationCreateRequest,
     InvestigationStatus,
 )
@@ -25,10 +30,18 @@ from app.domain.runner.schemas import (
     AgentArtifactRef,
     EnvironmentSliceRef,
     ResourceLimits,
+    RunnerState,
 )
 
 
 async def run_live_smoke() -> int:
+    # Fit the watchdog budget inside this script's 300s sandbox: 120s tool
+    # timeout + 60s recovery + 60s run reserve = 240s < 300s. SandboxSpec
+    # validation will reject any configuration that exceeds the outer lifetime,
+    # so the bridge watchdog always fires before Modal kills the container.
+    os.environ.setdefault("TOOL_TIMEOUT_S", "120")
+    os.environ.setdefault("TOOL_RECOVERY_TIMEOUT_S", "60")
+
     settings = get_settings()
 
     if not os.environ.get("SIMULATE_LIVE_E2E"):
@@ -49,7 +62,7 @@ async def run_live_smoke() -> int:
         service = InvestigationService(
             repo,
             runner=runner,
-            control_plane_url=settings.control_plane_public_url or "http://127.0.0.1:8000",
+            control_plane_url=settings.control_plane_public_url,
         )
 
         trace_id = f"smoke_tr_{uuid4().hex[:8]}"
@@ -82,28 +95,79 @@ async def run_live_smoke() -> int:
         )
 
         print(f"Creating investigation for trace {trace_id}...")
-        resp, token = await service.start(request)
+        try:
+            resp, _ = await service.start(request)
+        except Exception as exc:
+            print(f"FAIL: could not create investigation: {exc}", file=sys.stderr)
+            return 1
         await session.commit()
         print(f"Investigation created: {resp.id} (status={resp.status.value})")
 
-        # Monitor live event stream until terminal state or timeout
-        print("Streaming live events from container...")
-        max_polls = 60
-        for _ in range(max_polls):
+        # Monitor until a terminal status or the sandbox timeout elapses.
+        timeout_s = request.resource_limits.timeout_s
+        deadline = time.monotonic() + timeout_s
+        detail = None
+        while time.monotonic() < deadline:
             await asyncio.sleep(2)
             detail = await service.get_by_id(resp.id)
-            if detail.status in {
-                InvestigationStatus.COMPLETED,
-                InvestigationStatus.FAILED,
-                InvestigationStatus.CANCELLED,
-            }:
-                print(f"Investigation reached terminal status: {detail.status.value}")
-                if detail.summary:
-                    print(f"Summary Findings: {detail.summary.findings}")
-                    print(f"Recommended Next Step: {detail.summary.next_step}")
+            if detail.status in TERMINAL_STATUSES:
                 break
 
-        print("=== Smoke test run finished ===")
+        if detail is None or detail.status not in TERMINAL_STATUSES:
+            handle = service._handles.get(resp.id)
+            if handle is not None:
+                await asyncio.to_thread(runner.terminate, handle)
+            print(
+                f"FAIL investigation={resp.id}: timed out after {timeout_s}s "
+                "without reaching a terminal status",
+                file=sys.stderr,
+            )
+            return 1
+
+        if detail.status in {InvestigationStatus.FAILED, InvestigationStatus.CANCELLED}:
+            print(
+                f"FAIL investigation={resp.id}: ended status={detail.status.value} "
+                f"error={detail.error}",
+                file=sys.stderr,
+            )
+            return 1
+
+        if detail.summary is None:
+            print(
+                f"FAIL investigation={resp.id}: completed without a persisted summary",
+                file=sys.stderr,
+            )
+            return 1
+
+        handle = service._handles.get(resp.id)
+        if handle is None:
+            print(
+                f"FAIL investigation={resp.id}: no sandbox handle was created",
+                file=sys.stderr,
+            )
+            return 1
+
+        status = await asyncio.to_thread(runner.get_status, handle)
+        for _ in range(15):
+            if status.state != RunnerState.running:
+                break
+            await asyncio.sleep(1)
+            status = await asyncio.to_thread(runner.get_status, handle)
+        if status.state == RunnerState.running:
+            print(
+                f"FAIL investigation={resp.id}: sandbox still running after terminal status",
+                file=sys.stderr,
+            )
+            return 1
+        if status.state != RunnerState.completed or status.exit_code != 0:
+            print(
+                f"FAIL investigation={resp.id}: sandbox ended state={status.state.value} "
+                f"exit_code={status.exit_code}",
+                file=sys.stderr,
+            )
+            return 1
+
+        print(f"PASS investigation={resp.id}: completed with summary")
         return 0
 
 

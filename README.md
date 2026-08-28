@@ -7,7 +7,8 @@ Simulate runs customer agents inside disposable sandboxes with sanitized databas
 ## Current status
 
 - **Phases 0 to 7 (Complete):** Core support domain, LangSmith and Braintrust trace ingestion, LangGraph stateful workflow checkpointing, isolated PostgreSQL provisioning, and the terminal user simulator.
-- **Phase 8 MVP (Complete):** Runs Prime Agent (a coding harness by Prime Intellect) inside a detached Modal cloud sandbox. Prime Agent investigates production traces, reproduces issues, streams live events, supports two-way chat during execution, and writes an immutable evidence summary. Merged to `main` in `7b3c01a` (August 23, 2026).
+- **Phase 8 MVP (Complete):** Runs Prime Agent (a coding harness by Prime Intellect) inside a detached Modal cloud sandbox. Prime Agent investigates production traces, reproduces issues, streams live events, supports two-way chat during execution, and writes an immutable evidence summary. Merged to `main` in `7b3c01a` (August 23, 2026) and verified live against a real Modal sandbox on August 26, 2026 (see [Verified cloud investigation workflow](#verified-cloud-investigation-workflow)).
+- **Phase 8 full (In progress):** The business world compiler and controlled experiment engine (roadmap sub-phases 8.0 through 8.8) remain in progress. See [`BUILD_ROADMAP.md`](file:///Users/king/Desktop/simulate/BUILD_ROADMAP.md).
 
 For the milestone plan and system architecture, see [`BUILD_ROADMAP.md`](file:///Users/king/Desktop/simulate/BUILD_ROADMAP.md) and [`ARCHITECTURE.md`](file:///Users/king/Desktop/simulate/ARCHITECTURE.md).
 
@@ -152,6 +153,19 @@ To send a message or steer the investigator agent during execution:
 ```bash
 uv run lab investigate send <investigation-id> "Check the payment gateway timeout." --steer
 ```
+
+### Verified cloud investigation workflow
+
+Two smoke scripts prove the cloud investigation path against real Modal infrastructure. The prerequisites, exact commands, and success, skip, and failure behavior for each script are documented in [`scripts/README.md`](file:///Users/king/Desktop/simulate/scripts/README.md).
+
+```bash
+uv run python scripts/modal_smoke.py
+SIMULATE_LIVE_E2E=1 MODAL_ENABLED=true uv run python scripts/investigate_smoke.py
+```
+
+`scripts/modal_smoke.py` proves that the investigation image builds with Node.js 22 and Prime Agent v0.8.1 on PATH, and that sandbox creation, status polling, and idempotent termination work. `scripts/investigate_smoke.py` runs one investigation end to end: a real Modal sandbox boots the bridge and Prime Agent, reaches the public control plane through an HTTPS tunnel, exercises the World Gateway tools, persists ordered events, writes exactly one summary, and terminates cleanly.
+
+The verified live path uses standard OpenAI or Anthropic credentials mapped to `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. Prime Agent v0.8.1 requires a custom `models.json` for non-standard OpenAI-compatible providers, so custom `MODEL_BASE_URL` endpoints are not covered by this workflow.
 
 ---
 

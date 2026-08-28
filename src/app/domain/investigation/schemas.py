@@ -81,7 +81,7 @@ class InvestigationSummaryCreate(BaseModel):
 
     findings: str
     next_step: str
-    evidence_refs: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_refs: list[str | dict[str, Any]] = Field(default_factory=list)
 
 
 class InvestigationSummaryResponse(BaseModel):
@@ -93,7 +93,7 @@ class InvestigationSummaryResponse(BaseModel):
     investigation_id: UUID
     findings: str
     next_step: str
-    evidence_refs: list[dict[str, Any]]
+    evidence_refs: list[str | dict[str, Any]]
     created_at: datetime
 
 

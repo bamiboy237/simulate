@@ -10,6 +10,7 @@ from tests.fakes.runners import FakeRunner
 
 from app.domain.runner.base import CloudRunner
 from app.domain.runner.schemas import (
+    MODAL_RUN_RESERVE_S,
     AgentArtifactRef,
     ChatEnvelope,
     EnvironmentSliceRef,
@@ -25,8 +26,10 @@ from app.domain.runner.schemas import (
 
 def test_sandbox_spec_roundtrip_and_defaults() -> None:
     """Verify SandboxSpec creation and schema serialization roundtrip."""
+    inv_id = uuid4()
     spec = SandboxSpec(
         spec_version="1.0",
+        investigation_id=inv_id,
         task_brief="# Task: Reproduce checkout refund failure",
         environment_slice=EnvironmentSliceRef(
             world_id="world-refunds",
@@ -46,22 +49,166 @@ def test_sandbox_spec_roundtrip_and_defaults() -> None:
         ),
         env={"LOG_LEVEL": "DEBUG"},
         secrets={"OPENAI_API_KEY": SecretStr("sk-live-secret-999")},
+        trace_ref={"trace_id": "tr-spec-1", "source": "manual"},
         callback_base_url="https://api.simulate.local",
         resource_limits=ResourceLimits(timeout_s=1800, cpus=2, memory_mib=4096),
+        outbound_domain_allowlist=["api.openai.com", "api.simulate.local"],
     )
 
     dumped = spec.model_dump()
     assert dumped["spec_version"] == "1.0"
+    assert dumped["investigation_id"] == inv_id
     assert dumped["environment_slice"]["world_id"] == "world-refunds"
     assert dumped["investigator"]["digest_or_profile"] == "prime-investigator@1.0.0"
     assert dumped["tested_agent"]["entrypoint"] == "python -m agent.server"
+    assert dumped["trace_ref"] == {"trace_id": "tr-spec-1", "source": "manual"}
     assert dumped["resource_limits"]["timeout_s"] == 1800
+    assert dumped["outbound_domain_allowlist"] == ["api.openai.com", "api.simulate.local"]
 
     # Reconstruct from model_dump
     reconstructed = SandboxSpec.model_validate(dumped)
     assert reconstructed.spec_version == spec.spec_version
+    assert reconstructed.investigation_id == inv_id
     assert reconstructed.environment_slice.slice_name == "refund_under_500"
     assert reconstructed.secrets["OPENAI_API_KEY"].get_secret_value() == "sk-live-secret-999"
+    assert reconstructed.outbound_domain_allowlist == ["api.openai.com", "api.simulate.local"]
+
+
+def test_sandbox_spec_reserved_env_keys_rejected() -> None:
+    """Verify SandboxSpec raises ValueError if reserved environment keys are provided."""
+    reserved_keys = [
+        "INVESTIGATION_ID",
+        "TASK_BRIEF",
+        "CONTROL_PLANE_CALLBACK_URL",
+        "BRIDGE_TOKEN",
+        "WORLD_GATEWAY_URL",
+        "WORLD_GATEWAY_TOKEN",
+        "TRACE_REF",
+        "SPEC_VERSION",
+        "WORLD_ID",
+        "WORLD_VERSION",
+        "SLICE_NAME",
+        "FIXTURE_BUNDLE_REF",
+    ]
+
+    for key in reserved_keys:
+        with pytest.raises(ValueError, match="Reserved environment variables cannot be overridden"):
+            SandboxSpec(
+                investigation_id=uuid4(),
+                task_brief="Investigate",
+                environment_slice=EnvironmentSliceRef(
+                    world_id="w1",
+                    world_version="1",
+                    slice_name="s1",
+                    fixture_bundle_ref="f1",
+                    provenance="observed",
+                ),
+                investigator=AgentArtifactRef(kind="prime_profile", digest_or_profile="p@1"),
+                callback_base_url="https://api.test",
+                env={key: "malicious_override"},
+            )
+
+
+def test_sandbox_spec_rejects_watchdog_budget_exceeding_outer_timeout() -> None:
+    """Red regression: the watchdog budget must fit the sandbox outer timeout.
+
+    The exact live hang used a Modal sandbox with resource_limits.timeout_s=300.
+    Default watchdog timeouts (600s tool + 300s recovery + reserve) exceed that,
+    so Modal would kill the sandbox before the watchdog fired. Such a spec must
+    be rejected instead of silently launching.
+    """
+    with pytest.raises(ValueError, match="watchdog"):
+        SandboxSpec(
+            investigation_id=uuid4(),
+            task_brief="Investigate",
+            environment_slice=EnvironmentSliceRef(
+                world_id="w1",
+                world_version="1",
+                slice_name="s1",
+                fixture_bundle_ref="f1",
+                provenance="observed",
+            ),
+            investigator=AgentArtifactRef(kind="prime_profile", digest_or_profile="p@1"),
+            callback_base_url="https://api.test",
+            resource_limits=ResourceLimits(timeout_s=300),
+        )
+
+
+def test_sandbox_spec_300s_smoke_configuration_fits_watchdog_budget() -> None:
+    """Verify the 300s smoke configuration can fit a valid watchdog budget."""
+    spec = SandboxSpec(
+        investigation_id=uuid4(),
+        task_brief="Investigate",
+        environment_slice=EnvironmentSliceRef(
+            world_id="w1",
+            world_version="1",
+            slice_name="s1",
+            fixture_bundle_ref="f1",
+            provenance="observed",
+        ),
+        investigator=AgentArtifactRef(kind="prime_profile", digest_or_profile="p@1"),
+        callback_base_url="https://api.test",
+        resource_limits=ResourceLimits(timeout_s=300),
+        tool_timeout_s=120,
+        tool_recovery_timeout_s=60,
+    )
+    assert spec.tool_timeout_s == 120
+    assert spec.tool_recovery_timeout_s == 60
+    # Abort deadline, recovery deadline, and the run reserve fit inside 300s.
+    assert spec.tool_timeout_s + spec.tool_recovery_timeout_s + MODAL_RUN_RESERVE_S <= 300
+
+
+def test_sandbox_spec_rejects_non_positive_watchdog_values() -> None:
+    """Verify positive-only watchdog values with correct ordering."""
+    with pytest.raises(ValueError, match="watchdog"):
+        SandboxSpec(
+            investigation_id=uuid4(),
+            task_brief="Investigate",
+            environment_slice=EnvironmentSliceRef(
+                world_id="w1",
+                world_version="1",
+                slice_name="s1",
+                fixture_bundle_ref="f1",
+                provenance="observed",
+            ),
+            investigator=AgentArtifactRef(kind="prime_profile", digest_or_profile="p@1"),
+            callback_base_url="https://api.test",
+            resource_limits=ResourceLimits(timeout_s=1800),
+            tool_timeout_s=0,
+        )
+    with pytest.raises(ValueError, match="watchdog"):
+        SandboxSpec(
+            investigation_id=uuid4(),
+            task_brief="Investigate",
+            environment_slice=EnvironmentSliceRef(
+                world_id="w1",
+                world_version="1",
+                slice_name="s1",
+                fixture_bundle_ref="f1",
+                provenance="observed",
+            ),
+            investigator=AgentArtifactRef(kind="prime_profile", digest_or_profile="p@1"),
+            callback_base_url="https://api.test",
+            resource_limits=ResourceLimits(timeout_s=1800),
+            tool_recovery_timeout_s=-5,
+        )
+
+
+def test_sandbox_spec_requires_investigation_id() -> None:
+    """Verify SandboxSpec raises ValidationError when investigation_id is omitted."""
+    with pytest.raises(Exception):
+        SandboxSpec(  # type: ignore[call-arg]
+            task_brief="Investigate",
+            environment_slice=EnvironmentSliceRef(
+                world_id="w1",
+                world_version="1",
+                slice_name="s1",
+                fixture_bundle_ref="f1",
+                provenance="observed",
+            ),
+            investigator=AgentArtifactRef(kind="prime_profile", digest_or_profile="p@1"),
+            callback_base_url="https://api.test",
+        )
 
 
 def test_sandbox_handle_and_status_models() -> None:
@@ -90,6 +237,7 @@ def test_sandbox_spec_secret_redaction() -> None:
     """Verify secret values never appear in repr, str, or JSON dumps."""
     secret_val = "sk-extremely-sensitive-token-12345"
     spec = SandboxSpec(
+        investigation_id=uuid4(),
         task_brief="Investigate payment error",
         environment_slice=EnvironmentSliceRef(
             world_id="w1",
@@ -199,6 +347,7 @@ def test_fake_runner_lifecycle_and_scripting() -> None:
     assert isinstance(fake, CloudRunner)
 
     spec = SandboxSpec(
+        investigation_id=uuid4(),
         task_brief="Test brief",
         environment_slice=EnvironmentSliceRef(
             world_id="w1",

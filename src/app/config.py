@@ -1,11 +1,18 @@
 """This module loads application configuration from environment variables."""
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic import PostgresDsn, SecretStr, field_serializer, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import (
+    Field,
+    PostgresDsn,
+    SecretStr,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -36,9 +43,36 @@ class Settings(BaseSettings):
     modal_enabled: bool = False
     modal_app_name: str = "simulate-mvp"
     modal_timeout_s: int = 3600
+    modal_outbound_domain_allowlist: Annotated[list[str], NoDecode] = Field(default_factory=list)
     control_plane_public_url: str | None = None
     investigation_heartbeat_silence_s: int = 90
     simulate_live_e2e: bool = False
+    # In-sandbox Prime watchdog timeouts. TOOL_TIMEOUT_S + TOOL_RECOVERY_TIMEOUT_S
+    # + MODAL_RUN_RESERVE_S must fit inside the sandbox outer timeout; SandboxSpec
+    # validates and rejects violating combinations at launch.
+    tool_timeout_s: int = 600
+    tool_recovery_timeout_s: int = 300
+
+    @field_validator("modal_outbound_domain_allowlist", mode="before")
+    @classmethod
+    def parse_outbound_domain_allowlist(cls, v: object) -> list[str]:
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            if v.startswith("[") and v.endswith("]"):
+                import json
+
+                try:
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(x).strip() for x in parsed if str(x).strip()]
+                except Exception:
+                    pass
+            return [item.strip() for item in v.split(",") if item.strip()]
+        if isinstance(v, (list, tuple, set)):
+            return [str(item).strip() for item in v if str(item).strip()]
+        return []
 
     @field_validator("database_url", "database_url_unpooled", mode="before")
     @classmethod

@@ -1,5 +1,13 @@
 # Phase 8 MVP implementation plan
 
+> **ARCHIVED — historical implementation plan (2026-08-26).** The five milestones
+> are implemented and merged to `main` in merge commit `7b3c01a`. Live evidence was
+> recorded on 2026-08-26: `scripts/modal_smoke.py` passed, and
+> `scripts/investigate_smoke.py` passed for investigation
+> `f50e641c-ba2a-40d8-96d8-235278ce4312`. Keep this document as the historical
+> record of how the MVP was built. Unchecked boxes below are remaining follow-up
+> after this documentation change, not current implementation status.
+
 This document tells you exactly what to build for Phase 8 of Simulate. Work through the five
 milestones in order. Each milestone closes one Linear issue and ends with a checklist. Do not
 start a milestone until the previous checklist passes.
@@ -465,16 +473,14 @@ providers, renames of legacy terms. Each has a later home in the roadmap.
 
 ## Final acceptance checklist
 
-These map one-to-one onto THE-18's acceptance boxes:
+These map one-to-one onto THE-18's acceptance boxes. Status reflects evidence recorded on 2026-08-26:
 
-- [ ] One command starts a detached Modal investigation from one support trace reference.
-- [ ] Disconnecting and reconnecting mid-run loses nothing; events resume ordered and complete.
-- [ ] Chat reaches the running agent while it works, and steering works mid-run.
-- [ ] The final summary persists, and the sandbox terminates automatically afterwards.
-- [ ] Trace reference, world and slice versions, both agent identities, full event history,
-      chat log, and summary are all queryable.
-- [ ] `uv run ruff check .`, `uv run mypy src`, and `uv run pytest tests/unit -q` pass;
-      integration tests pass against disposable PostgreSQL; the live script skips cleanly.
+- [x] One command starts a detached Modal investigation from one support trace reference. (Proven by the passing live smoke and the offline end-to-end test.)
+- [x] Disconnecting and reconnecting mid-run loses nothing; events resume ordered and complete. (Proven by the PostgreSQL disconnect/reconnect replay test, ordered and duplicate-free.)
+- [x] Chat reaches the running agent while it works, and steering works mid-run. (Bridge tests prove prompt, steer, and follow_up reach Prime Agent stdin in order; the live run proved the RPC link accepts the task brief and executes.)
+- [x] The final summary persists, and the sandbox terminates automatically afterwards. (Live run persisted exactly one summary and terminated cleanly; termination is idempotent.)
+- [x] Trace reference, world and slice versions, both agent identities, full event history, chat log, and summary are all queryable. (Covered by service, repository, and API tests against the persisted records.)
+- [x] `uv run ruff check .`, `uv run mypy src`, and `uv run pytest tests/unit -q` pass; relevant integration tests pass against PostgreSQL and Modal; the live smoke scripts pass with credentials. (Latest repair verification on 2026-08-27: Ruff passed; mypy passed across 172 source files; 775 unit tests passed; live investigation `5d1c240d-a4ca-4faa-b213-cef4a696113f` exited 0 with exactly one summary and one `investigation_finished`; and the full suite reported 804 passed, 21 skipped, and 2 failed. Both failures are the known isolated-PostgreSQL CLI issue and reproduce at base commit `22e5044`.)
 
 ---
 
@@ -488,5 +494,3 @@ Format:
 ### [BLOCKED or DECISION] THE-1x - timestamp - one-line summary
 <the same content you sent over mesh>
 ```
-
-

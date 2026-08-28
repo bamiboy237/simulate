@@ -120,11 +120,7 @@ class InMemoryInvestigationRepository:
         for event in events:
             if event.seq not in existing_seqs:
                 self._event_id_counter += 1
-                type_str = (
-                    event.type.value
-                    if hasattr(event.type, "value")
-                    else str(event.type)
-                )
+                type_str = event.type.value if hasattr(event.type, "value") else str(event.type)
                 rec = InvestigationEventRecord(
                     id=self._event_id_counter,
                     investigation_id=investigation_id,
@@ -192,7 +188,7 @@ class InMemoryInvestigationRepository:
         *,
         findings: str,
         next_step: str,
-        evidence_refs: list[dict[str, Any]],
+        evidence_refs: list[str | dict[str, Any]],
     ) -> InvestigationSummaryRecord:
         summary = InvestigationSummaryRecord(
             id=1,

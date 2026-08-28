@@ -44,6 +44,45 @@ def test_invalid_environment_fails() -> None:
         )
 
 
+def test_modal_outbound_allowlist_accepts_comma_separated_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:password@localhost:5432/app")
+    monkeypatch.setenv(
+        "MODAL_OUTBOUND_DOMAIN_ALLOWLIST",
+        "control.example.com,api.openai.com",
+    )
+
+    settings = Settings(_env_file=None)
+
+    assert settings.modal_outbound_domain_allowlist == [
+        "control.example.com",
+        "api.openai.com",
+    ]
+
+
+def test_settings_parse_watchdog_timeouts_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:password@localhost:5432/app")
+    monkeypatch.setenv("TOOL_TIMEOUT_S", "120")
+    monkeypatch.setenv("TOOL_RECOVERY_TIMEOUT_S", "60")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.tool_timeout_s == 120
+    assert settings.tool_recovery_timeout_s == 60
+
+
+def test_watchdog_timeout_defaults_fit_default_sandbox_timeout() -> None:
+    settings = Settings(
+        database_url="postgresql://user:password@localhost:5432/app",
+        _env_file=None,
+    )
+    # Defaults (600 + 300 + 60 = 960s) fit the default 3600s sandbox lifetime.
+    assert settings.tool_timeout_s + settings.tool_recovery_timeout_s + 60 <= 3600
+
+
 def test_tracing_defaults_off_and_api_key_is_masked() -> None:
     secret = "review-secret-key"
     database_password = "database-secret"

@@ -9,11 +9,12 @@ from app.config import Settings
 from app.domain.investigation.service import InvestigationService
 from app.main import create_app
 from tests.fakes.investigation_repository import InMemoryInvestigationRepository
+from tests.fakes.runners import FakeRunner
 
 
 def _make_client() -> tuple[TestClient, InvestigationService]:
     repo = InMemoryInvestigationRepository()
-    service = InvestigationService(repo)
+    service = InvestigationService(repo, runner=FakeRunner())
     settings = Settings(environment="test", modal_enabled=False)
     app = create_app(settings)
     app.dependency_overrides[get_investigation_service] = lambda: service

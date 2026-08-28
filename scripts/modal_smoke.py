@@ -6,6 +6,7 @@ Run this script directly when Modal credentials are configured locally:
 
 import sys
 import time
+from uuid import uuid4
 
 from pydantic import SecretStr
 
@@ -25,9 +26,13 @@ def main() -> int:
     print(f"App name: {settings.modal_app_name}")
     print(f"Modal enabled: {settings.modal_enabled}")
 
-    runner = ModalRunner(app_name=settings.modal_app_name)
+    runner = ModalRunner(
+        app_name=settings.modal_app_name,
+        default_outbound_domain_allowlist=settings.modal_outbound_domain_allowlist,
+    )
     spec = SandboxSpec(
         spec_version="1.0.0",
+        investigation_id=uuid4(),
         task_brief="# Modal smoke test",
         environment_slice=EnvironmentSliceRef(
             world_id="smoke_test",
@@ -42,9 +47,13 @@ def main() -> int:
             entrypoint="python -c \"print('Hello from Modal sandbox!')\"",
         ),
         env={"SMOKE_TEST": "true"},
-        secrets={"TEST_SECRET": SecretStr("smoke-secret-val")},
-        callback_base_url="https://localhost:8000",
+        secrets={
+            "BRIDGE_TOKEN": SecretStr("smoke-bridge-token"),
+            "TEST_SECRET": SecretStr("smoke-secret-val"),
+        },
+        callback_base_url="https://api.simulate.local",
         resource_limits=ResourceLimits(timeout_s=120, cpus=1, memory_mib=1024),
+        outbound_domain_allowlist=["api.simulate.local", "api.openai.com"],
     )
 
     print("Launching sandbox container...")

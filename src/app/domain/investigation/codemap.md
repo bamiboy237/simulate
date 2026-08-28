@@ -10,9 +10,10 @@ Investigation Domain & Control Plane Service. Manages the lifecycle state machin
 - **Repository Pattern:** `InvestigationRepository` protocol and `SqlAlchemyInvestigationRepository` encapsulate all database queries, leveraging PostgreSQL `on_conflict_do_nothing` for idempotent event recording.
 - **Domain Service Pattern:** `InvestigationService` coordinates business logic across state verification, task brief rendering, bearer token SHA-256 hashing, sandbox provisioning, event ingestion, and background sweeping.
 - **Token Guard / Authentication:** SHA-256 hashed bridge tokens authenticate sandbox incoming event batches and inbox polling without exposing raw tokens in database tables.
+- **Cloud Safety Gate:** When Modal is enabled, `start()` rejects reserved caller-supplied environment and secret keys, requires a public (non-loopback) `CONTROL_PLANE_PUBLIC_URL`, and requires `MODAL_OUTBOUND_DOMAIN_ALLOWLIST` to include both the control-plane host and the model-provider host.
 
 ## Key Files
-- `service.py`: `InvestigationService` managing FSM transitions, runner resolution, sandbox provisioning, event processing, chat, stale sweeping, and sandbox termination.
+- `service.py`: `InvestigationService` managing FSM transitions, runner resolution, Modal control-plane and outbound-allowlist validation, sandbox provisioning, event processing, chat, stale sweeping, and sandbox termination.
 - `brief.py`: `render_task_brief()` assembling structured markdown task briefs (incident overview, environment slice, failure summary, rules, evaluator expectations, and mandatory `summary.submit` final action protocol).
 - `repository.py`: `InvestigationRepository` protocol and `SqlAlchemyInvestigationRepository` persistence operations.
 - `models.py`: SQLAlchemy ORM entities (`InvestigationRecord`, `InvestigationEventRecord`, `InvestigationMessageRecord`, `InvestigationSummaryRecord`).
@@ -23,7 +24,7 @@ Investigation Domain & Control Plane Service. Manages the lifecycle state machin
 1. **Investigation Launch:**
    - `InvestigationService.start()` generates a cryptographically secure URL-safe bridge token, computes its SHA-256 hash, and inserts a new `InvestigationRecord` in `pending` status.
    - Compiles structured task brief via `render_task_brief()` (if not provided).
-   - Resolves runner (`ModalRunner` or `FakeRunner`) and provisions container sandbox via `runner.create_sandbox(SandboxSpec(...))`, storing the handle in `_handles`.
+   - Resolves runner (`ModalRunner` or `FakeRunner`). When Modal is enabled, validates the public control-plane URL and the outbound domain allowlist, then provisions the container sandbox via `runner.create_sandbox(SandboxSpec(...))`, placing the bridge token in the Modal secret set, and stores the handle in `_handles`.
    - On sandbox creation failure, immediately marks the investigation as `failed`.
 2. **State Transitions & Sandbox Reclamation:**
    - As sandbox provisioning proceeds, `transition_status()` moves state from `pending` -> `provisioning` -> `running`, stamping `started_at`.
@@ -32,11 +33,13 @@ Investigation Domain & Control Plane Service. Manages the lifecycle state machin
    - Sandbox bridge posts event batches via `record_events(token, events)`. The service verifies token authenticity and executes idempotent bulk inserts.
    - Automatically promotes `pending`/`provisioning` to `running` on first event receipt.
    - Updates heartbeat timestamps on `EventType.heartbeat`.
-   - Transitions state to `completed` on `EventType.summary_submitted` (saving `InvestigationSummaryRecord`) or `failed` on `EventType.error`.
+   - Transitions state to `completed` on `EventType.summary_submitted` (saving `InvestigationSummaryRecord`) or `failed` on `EventType.error`. Closing `investigation_finished` events are folded into the completion transition.
 4. **Interactive Steering:**
    - Users submit messages via `record_user_message()` (`prompt` or `steer` mode).
    - The sandbox bridge retrieves unread messages via `poll_inbox(token, cursor=...)`.
-5. **Staleness Sweep:**
+5. **SSE Streaming & Replay:**
+   - `GET /investigations/{id}/events` streams persisted events over Server-Sent Events. The API replays everything newer than the client's `Last-Event-ID` from PostgreSQL, then tails new arrivals; persistence precedes streaming, so reconnects are complete and ordered.
+6. **Staleness Sweep:**
    - Periodic background sweeper calls `sweep_stale(silence_seconds=90)` to transition silent running investigations to `failed`.
 
 ## Integration

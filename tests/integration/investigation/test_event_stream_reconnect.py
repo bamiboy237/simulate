@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 from pydantic import ValidationError
+from tests.fakes.runners import FakeRunner
 
 from app.config import Settings
 from app.db import get_session_factory
@@ -38,7 +39,7 @@ async def test_event_stream_reconnect_replays_ordered_without_duplicates() -> No
     session_factory = get_session_factory()
     async with session_factory() as session:
         repo = SqlAlchemyInvestigationRepository(session)
-        service = InvestigationService(repo)
+        service = InvestigationService(repo, runner=FakeRunner())
 
         create_req = InvestigationCreateRequest(
             trace_ref={"trace_id": "tr_reconnect_test"},

@@ -1,8 +1,8 @@
 """Unit tests for the investigation state machine and transitions."""
 
-
 import pytest
 from tests.fakes.investigation_repository import InMemoryInvestigationRepository
+from tests.fakes.runners import FakeRunner
 
 from app.domain.investigation.errors import (
     InvalidStateTransitionError,
@@ -38,7 +38,7 @@ def _sample_create_request() -> InvestigationCreateRequest:
 async def test_valid_lifecycle_transitions() -> None:
     """Verify happy path transition: pending -> provisioning -> running -> completed."""
     repo = InMemoryInvestigationRepository()
-    service = InvestigationService(repo)
+    service = InvestigationService(repo, runner=FakeRunner())
 
     # 1. Start creates in pending
     resp, token = await service.start(_sample_create_request())
@@ -63,7 +63,7 @@ async def test_valid_lifecycle_transitions() -> None:
 async def test_invalid_transitions_rejected() -> None:
     """Verify invalid transitions raise InvalidStateTransitionError."""
     repo = InMemoryInvestigationRepository()
-    service = InvestigationService(repo)
+    service = InvestigationService(repo, runner=FakeRunner())
 
     resp, _ = await service.start(_sample_create_request())
 
@@ -79,7 +79,7 @@ async def test_invalid_transitions_rejected() -> None:
 async def test_terminal_states_are_immutable() -> None:
     """Verify terminal states (completed, failed, cancelled) cannot be modified."""
     repo = InMemoryInvestigationRepository()
-    service = InvestigationService(repo)
+    service = InvestigationService(repo, runner=FakeRunner())
 
     resp, _ = await service.start(_sample_create_request())
     await service.transition_status(resp.id, InvestigationStatus.PROVISIONING)

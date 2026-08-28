@@ -95,9 +95,7 @@ class InvestigationMessageRecord(Base):
     """Stores chat messages sent between the user and investigator."""
 
     __tablename__ = "investigation_messages"
-    __table_args__ = (
-        Index("ix_investigation_messages_inv", "investigation_id", "id"),
-    )
+    __table_args__ = (Index("ix_investigation_messages_inv", "investigation_id", "id"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     investigation_id: Mapped[UUID] = mapped_column(
@@ -131,7 +129,7 @@ class InvestigationSummaryRecord(Base):
     )
     findings: Mapped[str] = mapped_column(Text, nullable=False)
     next_step: Mapped[str] = mapped_column(Text, nullable=False)
-    evidence_refs: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    evidence_refs: Mapped[list[str | dict[str, Any]]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

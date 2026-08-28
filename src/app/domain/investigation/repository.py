@@ -98,7 +98,7 @@ class InvestigationRepository(Protocol):
         *,
         findings: str,
         next_step: str,
-        evidence_refs: list[dict[str, Any]],
+        evidence_refs: list[str | dict[str, Any]],
     ) -> InvestigationSummaryRecord: ...
 
     async def get_summary(
@@ -331,7 +331,7 @@ class SqlAlchemyInvestigationRepository:
         *,
         findings: str,
         next_step: str,
-        evidence_refs: list[dict[str, Any]],
+        evidence_refs: list[str | dict[str, Any]],
     ) -> InvestigationSummaryRecord:
         summary = InvestigationSummaryRecord(
             investigation_id=investigation_id,

@@ -3,6 +3,8 @@
 Gated strictly on settings.modal_enabled so it skips cleanly in offline environments.
 """
 
+from uuid import uuid4
+
 import pytest
 from pydantic import SecretStr
 
@@ -28,9 +30,13 @@ def test_modal_live_sandbox_lifecycle() -> None:
     if not settings.modal_enabled:
         pytest.skip("MODAL_ENABLED is false; skipping live Modal runner integration test.")
 
-    runner = ModalRunner(app_name=settings.modal_app_name)
+    runner = ModalRunner(
+        app_name=settings.modal_app_name,
+        default_outbound_domain_allowlist=settings.modal_outbound_domain_allowlist,
+    )
     spec = SandboxSpec(
         spec_version="1.0.0",
+        investigation_id=uuid4(),
         task_brief="# Live integration test brief",
         environment_slice=EnvironmentSliceRef(
             world_id="live_test_world",
@@ -44,9 +50,16 @@ def test_modal_live_sandbox_lifecycle() -> None:
             digest_or_profile="prime@0.2.0",
             entrypoint="python -c \"print('live test')\"",
         ),
-        secrets={"TEST_KEY": SecretStr("test_secret_value")},
-        callback_base_url="https://localhost:8000",
-        resource_limits=ResourceLimits(timeout_s=60, cpus=1, memory_mib=1024),
+        secrets={
+            "BRIDGE_TOKEN": SecretStr("live-test-bridge-token"),
+            "TEST_KEY": SecretStr("test_secret_value"),
+        },
+        callback_base_url="https://api.simulate.local",
+        resource_limits=ResourceLimits(timeout_s=300, cpus=1, memory_mib=1024),
+        # Fit the watchdog budget inside the 300s outer timeout.
+        tool_timeout_s=120,
+        tool_recovery_timeout_s=60,
+        outbound_domain_allowlist=["api.simulate.local", "api.openai.com"],
     )
 
     handle = runner.create_sandbox(spec)
