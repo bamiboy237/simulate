@@ -7,6 +7,7 @@ hosted-model or observability credentials against the isolated database.
 """
 
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -79,6 +80,7 @@ def _lab(*args: str, expect: int = 0) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         [sys.executable, "-m", "app.cli.main", *args],
         capture_output=True,
+        env={**os.environ, "ENVIRONMENT": "test"},
         text=True,
         timeout=300,
     )

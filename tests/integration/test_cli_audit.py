@@ -7,6 +7,7 @@ structured report. Tests run only against the configured isolated database.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -36,6 +37,7 @@ def _lab(*args: str, expect: int = 0) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         [sys.executable, "-m", "app.cli.main", *args],
         capture_output=True,
+        env={**os.environ, "ENVIRONMENT": "test"},
         text=True,
         timeout=600,
     )
