@@ -41,7 +41,6 @@ def format_rpc_command(
     body: str,
     mode: RpcMode = "prompt",
     *,
-    request_id: str | None = None,
     streaming_behavior: StreamingBehavior | None = None,
 ) -> str:
     """Format a user chat message into a line-delimited Prime Agent v0.8.1 RPC command.
@@ -55,8 +54,6 @@ def format_rpc_command(
         "type": mode,
         "message": body,
     }
-    if request_id is not None:
-        payload["id"] = request_id
     if streaming_behavior is not None and mode == "prompt":
         payload["streamingBehavior"] = streaming_behavior
 

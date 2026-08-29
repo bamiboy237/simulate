@@ -97,6 +97,18 @@ def _validate_experiment(
         ) from error
 
 
+def _validate_model_baseline(case: RegressionCase, baseline: ModelConfig) -> None:
+    """Reject a runtime baseline that differs from the model recorded on the case."""
+    recorded = case.bundle.configuration_versions
+    if baseline.provider != recorded.model_provider or baseline.name != recorded.model_name:
+        raise SuiteRunError(
+            detail=(
+                f"baseline model {baseline.provider!r}/{baseline.name!r} does not match the model "
+                f"recorded on case {case.case_id!r} v{case.case_version}"
+            )
+        )
+
+
 def _side_totals(
     runs: Sequence[SimulationRun],
     success_flags: Sequence[bool],
@@ -137,6 +149,8 @@ async def run_suite_comparison(
         raise UnsupportedChangeError(change_type=change_type.value)
     for case in cases:
         _validate_experiment(case, change_type, candidate)
+        if change_type is ConfigurationChangeType.MODEL:
+            _validate_model_baseline(case, baseline_model_config)
 
     case_results, baseline_runs, candidate_runs, baseline_successes, candidate_successes = (
         await _run_and_compare_cases(
@@ -196,19 +210,7 @@ async def run_cohort_model_comparison(
     """
     _validate_cases(suite, cases)
     for case in cases:
-        recorded_provider = case.bundle.configuration_versions.model_provider
-        recorded_name = case.bundle.configuration_versions.model_name
-        if (
-            baseline_model_config.provider != recorded_provider
-            or baseline_model_config.name != recorded_name
-        ):
-            raise SuiteRunError(
-                detail=(
-                    f"baseline model {baseline_model_config.provider!r}/"
-                    f"{baseline_model_config.name!r} does not match the model "
-                    f"recorded on case {case.case_id!r} v{case.case_version}"
-                )
-            )
+        _validate_model_baseline(case, baseline_model_config)
 
     case_results, baseline_runs, candidate_runs, baseline_successes, candidate_successes = (
         await _run_and_compare_cases(
@@ -261,21 +263,6 @@ async def _run_and_compare_cases(
 
     for case in cases:
         bundle = case.bundle
-        if change_type is ConfigurationChangeType.MODEL:
-            recorded_provider = bundle.configuration_versions.model_provider
-            recorded_name = bundle.configuration_versions.model_name
-            if (
-                baseline_model_config.provider != recorded_provider
-                or baseline_model_config.name != recorded_name
-            ):
-                raise SuiteRunError(
-                    detail=(
-                        f"baseline model {baseline_model_config.provider!r}/"
-                        f"{baseline_model_config.name!r} does not match the model "
-                        f"recorded on case {case.case_id!r} v{case.case_version}"
-                    )
-                )
-
         baseline_run = await run_bundle(
             bundle=bundle,
             provisioner_factory=provisioner_factory,

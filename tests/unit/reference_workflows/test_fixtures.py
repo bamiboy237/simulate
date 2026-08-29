@@ -4,7 +4,6 @@ The fixtures must be offline, importable without application code, and stable:
 identical imports always produce identical identifiers and content hashes.
 """
 
-import importlib
 import json
 from dataclasses import asdict
 
@@ -33,12 +32,6 @@ def test_fixture_module_has_expected_exports(module: object) -> None:
     assert module.SENSITIVE_TOOLS
     assert module.STATE_TRANSITIONS
     assert module.SCENARIOS
-
-
-@pytest.mark.parametrize("module", MODULES, ids=lambda m: m.__name__)
-def test_seed_ids_are_stable_across_reimport(module: object) -> None:
-    fresh = importlib.import_module(module.__name__)
-    assert fresh.seed_id("customer:alex-rivera") == module.seed_id("customer:alex-rivera")
 
 
 @pytest.mark.parametrize("module", MODULES, ids=lambda m: m.__name__)

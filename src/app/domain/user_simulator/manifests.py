@@ -218,16 +218,8 @@ class SimulationCatalog:
         """Flat, deterministic scenario ids for the wizard."""
         return tuple(scenario.scenario_id for scenario in self._scenarios)
 
-    def plugin_ids(self) -> tuple[str, ...]:
-        """Flat plugin ids referenced by the loaded scenarios."""
-        return tuple(scenario.plugin_id for scenario in self._scenarios)
-
     def environments(self) -> tuple[EnvironmentProfile, ...]:
         """Every loaded environment profile, in file order."""
-        return self._profiles
-
-    def profiles(self) -> tuple[EnvironmentProfile, ...]:
-        """Alias for :meth:`environments` (profile-centric naming)."""
         return self._profiles
 
     def environment(self, profile_id: str) -> EnvironmentProfile:
@@ -388,11 +380,6 @@ def _load_environment_profiles(
         return {}, issues
     profiles: dict[str, EnvironmentProfile] = {}
     for index, entry in enumerate(environments_file.environments):
-        if not isinstance(entry, dict):
-            issues.append(
-                CatalogIssue(path.name, f"environments[{index}]", "must be a mapping")
-            )
-            continue
         try:
             profile = EnvironmentProfile.model_validate(entry)
         except Exception as error:  # noqa: BLE001 - surfaced as a safe issue

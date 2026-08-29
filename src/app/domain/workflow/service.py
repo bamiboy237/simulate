@@ -190,8 +190,7 @@ class WorkflowService:
         confirmation_ttl: timedelta = timedelta(minutes=15),
     ) -> None:
         self._dependencies = dependencies
-        self._checkpointer = checkpointer or InMemorySaver()
-        self._graph: Any = compile_support_graph(dependencies, self._checkpointer)
+        self._graph: Any = compile_support_graph(dependencies, checkpointer or InMemorySaver())
         self._clock = clock or (lambda: datetime.now(UTC))
         self._confirmation_ttl = confirmation_ttl
         self._locks: dict[str, asyncio.Lock] = {}

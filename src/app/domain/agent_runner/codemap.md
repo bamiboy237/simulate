@@ -1,38 +1,88 @@
 # src/app/domain/agent_runner/
 
 ## Responsibility
-In-sandbox agent harness and communication bridge (Phase 8 MVP). Operates inside the Modal sandbox container: starts the loopback World Gateway, runs Prime Agent v0.8.1 in line-delimited RPC mode under a deliberately sanitized child environment, relays control-plane chat messages inward, maps Prime Agent events to typed domain events, batches them to the control plane, aborts hung tool executions through a bounded watchdog, and stops cleanly only after a valid summary plus the corresponding fresh `agent_end`.
 
-## Design Patterns
-- **Ambassador / Sidecar Bridge Pattern:** `SandboxBridge.run()` owns the whole in-sandbox lifecycle: World Gateway first, then Prime Agent, the task brief as the first prompt, inbox polling, event batching, heartbeats, and cleanup on every exit path.
-- **Credential-Boundary Pattern:** the control-plane `BRIDGE_TOKEN` and the per-run loopback `WORLD_GATEWAY_TOKEN` are distinct secrets. The bridge authenticates control-plane calls with `BRIDGE_TOKEN` and configures the gateway with `WORLD_GATEWAY_TOKEN`; Prime Agent receives only `WORLD_GATEWAY_TOKEN`. Prime Agent launches under `build_child_env()`, an explicit allowlist (runtime basics, model-provider credentials, gateway wiring) that excludes `BRIDGE_TOKEN`, `CONTROL_PLANE_CALLBACK_URL`, task/control-plane data, database credentials, and unrelated secrets. IPython and the nine extension tools stay enabled (never `--no-builtin-tools`).
-- **Adapter / Serializer Pattern:** `prime_rpc.py` serializes typed `prompt`/`steer`/`follow_up`/`abort` commands and parses Prime Agent stdout into `RunnerEvent`s. Official `response` lines are filtered so they never become false domain events.
-- **Micro-Gateway Pattern:** `gateway.py` exposes exactly nine investigation tool routes on loopback with Bearer-token authentication (`WORLD_GATEWAY_TOKEN`) and emits authoritative `tool_call`, `tool_result`, and `summary_submitted` events to the bridge. Context carries only truthful metadata the bridge can prove; state/evidence/diff/trace data that is not compiled returns an explicit `{"available": false, "reason": ...}` instead of fabricated defaults.
-- **Bounded Tool Watchdog Pattern:** `SandboxBridge` tracks official `tool_execution_start`/`tool_execution_end` by `toolCallId`. A tool that runs past `tool_timeout_s` receives one official `{"type":"abort"}` RPC command, a persisted `warning` event, invalidation of any stale `agent_end`, and one bounded recovery steer instructing the agent to submit its summary without retrying. The watchdog fires on whichever comes first: the per-tool age or the overall run cutoff (`sandbox_timeout_s` − recovery − reserve) derived from the injected `SANDBOX_TIMEOUT_S`, so a tool that starts late in the run is still aborted before Modal kills the container; the recovery deadline is bounded to `sandbox_timeout_s` − reserve. Warning/error events distinguish per-tool timeout from run-budget exhaustion (`reason`). The abort's own `agent_end` is suppressed (it only closes the aborted run, never emits `investigation_finished`); the recovery run's `agent_start` opens a fresh run scope whose own `agent_end` counts. If no valid summary plus fresh `agent_end` arrives within `recovery_timeout_s`, the run fails deterministically (never fake success). Timeouts flow `Settings -> SandboxSpec -> container env (TOOL_TIMEOUT_S / TOOL_RECOVERY_TIMEOUT_S / SANDBOX_TIMEOUT_S) -> bridge`, and `SandboxSpec` validation rejects watchdog budgets that cannot fit the sandbox outer timeout.
-- **Prime Agent Extension Boundary:** `extensions/world_gateway.ts` holds one `APPROVED_TOOLS` mapping from identifier-safe underscore aliases to canonical dotted routes, forwards arguments over loopback HTTP with a bounded per-call timeout, and sanitizes error text without ever exposing the token, environment, or headers.
+Runs inside the investigation sandbox. It supervises Prime Agent 0.8.1, exposes a protected
+loopback World Gateway, converts Prime RPC output into domain events, relays control-plane chat,
+applies the bounded tool watchdog, and flushes ordered events to the control plane.
+
+## Design
+
+- **Bridge / process supervisor:** `SandboxBridge.run()` owns gateway startup, Prime creation, the
+  concurrent stdout, stderr, inbox, heartbeat, flush, and watchdog loops, and cleanup.
+- **Separated authority:** `BRIDGE_TOKEN` authenticates bridge-to-control-plane HTTP. A random
+  `WORLD_GATEWAY_TOKEN` authenticates Prime-to-gateway calls. Prime receives only the latter.
+- **Sanitized child environment:** Prime receives runtime basics, approved model credentials, and
+  loopback wiring. It does not inherit task, callback, database, or control-plane secrets.
+- **RPC adapter:** `prime_rpc.py` serializes official `prompt`, `steer`, `follow_up`, and `abort`
+  commands without local request IDs, filters command responses, and maps Prime events to domain
+  events.
+- **Micro-gateway / extension adapter:** `gateway.py` exposes nine dotted routes.
+  `world_gateway.ts` registers underscore aliases and forwards calls with a 30-second timeout.
+- **Truthful MVP boundary:** trace telemetry, state, diffs, and evidence return unavailable results
+  when not compiled. `scenario.run` and `proposal.create` return fixed MVP-shaped results.
+- **Mutation-aware retry:** the bridge marks mutation from authoritative gateway tool-call events;
+  crashes retry only before `scenario.run`, `proposal.create`, or `summary.submit`.
+- **Two-deadline watchdog:** the bridge tracks tool calls by `toolCallId` and aborts once at the
+  per-tool timeout or overall run cutoff, then permits one bounded recovery steer.
+- **Two-part completion:** success requires a valid summary, a fresh matching `agent_end`, and
+  successful event persistence.
 
 ## Key Files
-- `bridge.py`: `SandboxBridge` lifecycle loop, token separation, sanitized child env, tool watchdog, inbox polling, batching, retries, and cleanup.
-- `gateway.py`: `WorldGatewayService` and the FastAPI gateway app exposing the nine tools with truthful context.
-- `prime_rpc.py`: typed RPC command formatting (including `abort`), response filtering, and stdout parsing.
-- `extensions/world_gateway.ts`: Prime Agent v0.8.1 extension installed at `/root/.prime/agent/extensions/world_gateway.ts` by the Modal image recipe.
 
-## Data & Control Flow
-1. **Startup:** `SandboxBridge.run()` starts the World Gateway on `127.0.0.1:8001` with a freshly generated `WORLD_GATEWAY_TOKEN`, then spawns `prime-agent --mode rpc --no-session` (under `build_child_env()`), emits and flushes `investigation_started`, and sends the task brief as the first typed `prompt` command.
-2. **Inbound chat:** the bridge long-polls `GET /internal/inbox` with a cursor, translates modes (inactive `steer` downgrades to `follow_up`), and writes typed commands to prime-agent stdin.
-3. **Outbound events:** stdout lines are parsed (`agent_start` -> `agent_ready`, text deltas -> `message`, thinking deltas -> `thought`, `tool_execution_start` -> `tool_call`, `tool_execution_update`/`end` -> `tool_result`, `agent_end` -> `investigation_finished`; never `summary_submitted`) and buffered with sequence numbers, then flushed in batches of at most 50 events or every 500 milliseconds to `POST /internal/events`. The original official event name is preserved in the payload for diagnosis.
-4. **Tool execution:** Prime Agent calls the gateway through the registered extension using `WORLD_GATEWAY_TOKEN`. The gateway serves the nine tools, validates the summary payload, and emits authoritative tool events. Unknown tools return 404; a missing or wrong token returns 401 or 403; a malformed summary returns 400.
-5. **Watchdog:** official `tool_execution_start`/`tool_execution_end` events are tracked by `toolCallId`. The bridge aborts on whichever comes first: the per-tool age (`tool_timeout_s`) or the overall run cutoff (`sandbox_timeout_s` − recovery − reserve) injected via `SANDBOX_TIMEOUT_S`, so late-starting tools are still aborted before Modal kills the container. The recovery deadline is bounded to `sandbox_timeout_s` − reserve. A `warning` event (reason `tool_timeout` or `run_budget`) is persisted, stale `agent_end` state is invalidated, and one bounded recovery steer asks Prime to submit its summary without retrying. The abort's own `agent_end` only closes the aborted run (suppressed; never `investigation_finished`); the recovery `agent_start` opens the fresh scope whose own `agent_end` counts. Recovery expiry produces a deterministic fatal `error` and a nonzero exit.
-6. **Completion:** clean success (exit 0) requires both a valid `summary.submit` (`summary_submitted`, emitted exactly once) and the fresh `agent_end` that corresponds to the post-recovery run. Crashes retry up to 3 times only before a state-changing tool call (`scenario.run`, `proposal.create`, `summary.submit`). Protocol failures, post-mutation crashes, watchdog-recovery expiry, and persistence failures emit a visible `error` event and return nonzero. Every exit path closes stdin, stops the gateway, flushes buffered events, and redacts the stderr tail.
+- `bridge.py`: lifecycle, control-plane client, retries, watchdog, child environment, entrypoint.
+- `gateway.py`: loopback app, nine handlers, summary validation, authoritative tool events.
+- `prime_rpc.py`: Prime RPC serialization and event conversion.
+- `extensions/world_gateway.ts`: Prime extension installed in the Modal image.
+- `__init__.py`: public exports.
+
+## Data and Control Flow
+
+### Startup and Chat
+
+1. `ModalRunner` starts `python -m app.domain.agent_runner.bridge` with investigation metadata.
+2. `main()` validates UUID and timeout variables, builds world context, and starts the bridge.
+3. The bridge starts the gateway on `127.0.0.1:8001`, flushes `investigation_started`, launches
+   `prime-agent --mode rpc --no-session`, and sends the task brief as the first prompt.
+4. It polls `GET /internal/inbox` by message-ID cursor. Inactive `steer` becomes `follow_up`;
+   a prompt during an active run uses Prime's `streamingBehavior="steer"`.
+
+### Tools and Events
+
+1. Prime calls an underscore extension tool. The extension maps it to one of nine dotted gateway
+   routes and posts typed arguments with the gateway Bearer token.
+2. The gateway emits authoritative `tool_call` and `tool_result` callbacks. A valid
+   `summary.submit` emits `summary_submitted` once.
+3. Prime stdout maps `agent_start -> agent_ready`, text/thinking deltas to messages or thoughts,
+   tool start/update/end to tool events, errors to `error`, and `agent_end` to
+   `investigation_finished`. The original event name remains in each payload.
+4. The bridge assigns sequence numbers and posts batches of at most 50 or every 500 ms to
+   `POST /internal/events`. One lock serializes buffer snapshot, POST, and eviction.
+
+### Watchdog and Completion
+
+1. The watchdog fires at the first per-tool timeout or
+   `sandbox timeout - recovery timeout - 60 seconds`.
+2. It sends one abort, records a reasoned warning, ignores the aborted run's closing
+   `agent_end`, and sends one recovery steer. A later `agent_start` opens the run whose end counts.
+3. Summary plus fresh end sets completion. The bridge exits `0` only after a full forced flush.
+4. Recovery expiry, protocol failure, post-mutation crash, repeated pre-mutation crashes, or final
+   persistence failure emits a fatal error and exits nonzero.
+5. Every path closes Prime input, bounds process shutdown, stops the gateway, flushes again, and
+   closes the owned HTTP client. Stderr is capped at 50 redacted lines.
 
 ## Security Boundary
-- The World Gateway binds to `127.0.0.1`; nothing outside the container reaches it directly.
-- Authority is separated: `BRIDGE_TOKEN` authenticates the bridge to the control plane and never reaches Prime Agent; `WORLD_GATEWAY_TOKEN` is a per-run loopback token generated in the bridge and is the only token Prime Agent can read.
-- Prime Agent's child process environment is a deliberate allowlist (`build_child_env()`): runtime basics, model-provider credentials, and gateway wiring only. `BRIDGE_TOKEN`, `CONTROL_PLANE_CALLBACK_URL`, task/control-plane data, database credentials, and unrelated secrets are excluded. The model-provider credential remains visible to Prime/IPython; a provider proxy is the documented future hardening.
-- Both tokens are redacted from all diagnostics (`redact_secrets`).
-- The summary payload is validated before any completion event; duplicate `summary.submit` calls never duplicate summary events.
-- Outbound egress is restricted by the Modal outbound domain allowlist configured on the sandbox.
+
+- The gateway binds only to container loopback.
+- Prime cannot read the bridge token or control-plane callback through its child environment.
+- Diagnostics redact both tokens.
+- Provider credentials remain available to Prime and IPython; a provider proxy is future work.
+- Modal applies the configured outbound-domain allowlist to the sandbox.
 
 ## Integration
-- **Consumed by:** Modal sandbox entrypoint (`python -m app.domain.agent_runner.bridge`), Prime Agent v0.8.1 extension loader, control-plane `POST /internal/events` and `GET /internal/inbox`.
-- **Depends on:** `app.domain.runner.schemas` (`RunnerEvent`, `EventType`), `fastapi`/`uvicorn` for the gateway, `httpx` for control-plane calls.
+
+- **Launched by:** `app.domain.runner.modal_runner.ModalRunner`.
+- **HTTP peer:** `app.api.investigations_router` internal endpoints.
+- **Lifecycle consumer:** `app.domain.investigation.service.InvestigationService`.
+- **Shared contracts:** `app.domain.runner.schemas`.
+- **External runtimes:** Prime Agent, FastAPI/Uvicorn, `httpx`, Node.js fetch, and TypeBox.

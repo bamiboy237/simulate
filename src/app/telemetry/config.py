@@ -62,16 +62,16 @@ def langsmith_export_config(settings: "Settings") -> LangSmithExportConfig | Non
     )
 
 
-def _span_processors(settings: "Settings") -> list[tuple[str, SpanProcessor]]:
-    """This function returns enabled span processors with their names."""
-    processors: list[tuple[str, SpanProcessor]] = []
+def _span_processors(settings: "Settings") -> list[SpanProcessor]:
+    """This function returns enabled span processors."""
+    processors: list[SpanProcessor] = []
     if settings.otel_tracing_enabled:
         # Simple processor prints each finished span immediately, which is
         # what local trace inspection needs.
-        processors.append(("console", SimpleSpanProcessor(ConsoleSpanExporter())))
+        processors.append(SimpleSpanProcessor(ConsoleSpanExporter()))
     langsmith = langsmith_export_config(settings)
     if langsmith is not None:
-        processors.append(("langsmith", BatchSpanProcessor(langsmith.otlp_exporter())))
+        processors.append(BatchSpanProcessor(langsmith.otlp_exporter()))
     return processors
 
 
@@ -94,7 +94,7 @@ def build_trace_provider(settings: "Settings") -> TracerProvider | None:
         }
     )
     provider = TracerProvider(resource=resource)
-    for _, processor in processors:
+    for processor in processors:
         provider.add_span_processor(processor)
     return provider
 

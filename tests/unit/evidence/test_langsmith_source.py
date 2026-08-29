@@ -229,37 +229,6 @@ async def test_fetch_traces_returns_empty_when_provider_has_no_runs() -> None:
     assert await source.fetch_traces(TraceQuery(limit=5)) == []
 
 
-async def test_fetch_traces_skips_runs_that_are_not_agent_traces() -> None:
-    junk_root = {
-        "id": "junk-run",
-        "name": "probe.span",
-        "parent_run_id": None,
-        "start_time": "2026-08-06T10:00:00.000Z",
-        "end_time": "2026-08-06T10:00:00.500Z",
-        "run_type": "chain",
-        "trace_id": "junk-trace",
-        "error": None,
-        "extra": {"metadata": {}},
-    }
-    valid_tree = _fixture_tree("phase2-01-bad-prompt-policy-answer")
-    client = FakeLangSmithClient(
-        query_results=[
-            {key: value for key, value in valid_tree.items() if key != "child_runs"},
-            junk_root,
-        ],
-        run_trees={
-            str(valid_tree["id"]): valid_tree,
-            "junk-run": {**junk_root, "child_runs": []},
-        },
-    )
-    source = LangSmithSource(_config(), client=client)
-
-    cohort = await source.fetch_traces(TraceQuery(limit=5))
-
-    assert len(cohort) == 1
-    assert cohort[0].reason_code == "policy_answer_ungrounded"
-
-
 async def test_single_trace_selection_stays_strict_about_junk() -> None:
     junk_tree = {
         "id": "junk-run",

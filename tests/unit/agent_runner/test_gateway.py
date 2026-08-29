@@ -103,7 +103,6 @@ def test_gateway_event_callback_and_summary_submission() -> None:
     assert events[0][1]["tool"] == "trace.read"  # type: ignore
     assert events[1][0] == EventType.tool_result
     assert events[1][1]["tool"] == "trace.read"  # type: ignore
-    assert app.state.service.has_mutated is False
 
     # 2. Mutating tool call (scenario.run)
     resp_scen = client.post(
@@ -112,7 +111,6 @@ def test_gateway_event_callback_and_summary_submission() -> None:
         headers=headers,
     )
     assert resp_scen.status_code == 200
-    assert app.state.service.has_mutated is True
 
     # 3. Malformed summary.submit (missing next_step)
     resp_bad_summary = client.post(

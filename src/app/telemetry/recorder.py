@@ -69,10 +69,6 @@ class TraceSpan:
         If the application disables tracing, this method returns ``None``.
         """
 
-    def end(self) -> None:
-        """This method finishes the span before the context manager exits."""
-
-
 class NullSpan(TraceSpan):
     """This class represents a span that performs no telemetry work.
 
@@ -109,10 +105,6 @@ class _OtelSpanWrapper(TraceSpan):
 
     def span_context(self) -> SpanContext | None:
         return self._span.get_span_context()
-
-    def end(self) -> None:
-        self._span.end()
-
 
 SpanListener = Callable[[TraceSpan, bool], None]
 

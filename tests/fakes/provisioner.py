@@ -7,7 +7,6 @@ state, mutations) against an in-memory repository so runner tests stay fast
 and offline. Full runs use the PostgreSQL provisioner.
 """
 
-import asyncio
 from uuid import UUID, uuid4
 
 from app.domain.simulation.adapters import AdapterKind, StateMutation
@@ -214,8 +213,3 @@ def stateful_provisioner_factory(
         )
 
     return build
-
-
-async def drain(collector) -> None:
-    """This function waits for pending subscriber events in tests."""
-    await asyncio.sleep(0)

@@ -105,7 +105,6 @@ class WorldGatewayService:
         self.context = context or {}
         self.event_callback = event_callback
         self.submitted_summary: dict[str, Any] | None = None
-        self.has_mutated: bool = False
         self._summary_event_emitted: bool = False
 
     def emit_event(self, event_type: EventType, payload: dict[str, Any] | None = None) -> None:
@@ -126,11 +125,7 @@ class WorldGatewayService:
         # 1. Emit authoritative tool_call event
         self.emit_event(EventType.tool_call, {"tool": tool_name, "arguments": arguments})
 
-        # 2. Track state-changing mutations
-        if tool_name in STATE_CHANGING_TOOLS:
-            self.has_mutated = True
-
-        # 3. Execute tool logic
+        # 2. Execute tool logic
         if tool_name == "trace.read":
             trace_ref = self.context.get("trace")
             if trace_ref is not None:
@@ -234,7 +229,7 @@ class WorldGatewayService:
         else:
             result = {}
 
-        # 4. Emit tool_result event for other tools
+        # 3. Emit tool_result event for other tools
         self.emit_event(EventType.tool_result, {"tool": tool_name, "result": result})
         return result
 

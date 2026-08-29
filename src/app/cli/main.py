@@ -82,15 +82,6 @@ SOURCE_TYPE_BY_SCENARIO = {
 }
 
 
-class CliError(Exception):
-    """This class represents a safe command failure with a stable code."""
-
-    def __init__(self, code: str, message: str) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-
-
 def fail(code: str, message: str) -> NoReturn:
     """This function prints a safe error and exits non-zero."""
     print(f"lab: error [{code}]: {message}", file=sys.stderr)
@@ -1389,8 +1380,6 @@ def main() -> None:
     args = parser.parse_args()
     try:
         args.func(args)
-    except CliError as error:
-        fail(error.code, error.message)
     except Exception as error:  # never leak tracebacks or secrets to users
         fail("command_failed", f"{type(error).__name__}: {error}")
     raise SystemExit(0)

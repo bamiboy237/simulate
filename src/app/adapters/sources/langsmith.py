@@ -304,9 +304,6 @@ class LangSmithSource:
             source_url=source_url,
         )
 
-    def _matches(self, evidence: TraceEvidence, query: TraceQuery) -> bool:
-        return evidence_matches_query(evidence, query)
-
     async def fetch_trace(self, source_trace_id: str) -> TraceEvidence:
         """This method fetches one selected trace and maps it to evidence."""
         try:
@@ -336,13 +333,13 @@ class LangSmithSource:
                     evidence = self._evidence_for_tree(tree)
                 except (InvalidEvidence, UnsupportedTrace):
                     continue
-                if self._matches(evidence, query):
+                if evidence_matches_query(evidence, query):
                     evidence_list.append(evidence)
                     if len(evidence_list) >= query.limit:
                         break
         except Exception as error:
             translate_client_error(error)
-        return evidence_list[: query.limit]
+        return evidence_list
 
     async def close(self) -> None:
         await self._client.close()

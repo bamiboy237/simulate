@@ -222,12 +222,6 @@ def test_environment_lookup_raises_safe_error_when_missing() -> None:
     assert "lab-test-pg" in message  # available list is safe, not secret
 
 
-def test_environments_and_profiles_agree() -> None:
-    catalog = load_simulation_catalog()
-    assert catalog.environments() == catalog.profiles()
-    assert catalog.environments() == load_environment_profiles()
-
-
 def test_validate_returns_filename_field_messages() -> None:
     catalog = load_simulation_catalog()
     assert catalog.ok

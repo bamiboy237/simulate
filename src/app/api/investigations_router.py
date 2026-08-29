@@ -12,13 +12,13 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.dependencies import get_investigation_service
 from app.domain.investigation.schemas import (
+    TERMINAL_STATUSES,
     ChatMessageRequest,
     ChatMessageResponse,
     InboxMessagesResponse,
     InvestigationCreateRequest,
     InvestigationDetailResponse,
     InvestigationResponse,
-    InvestigationStatus,
 )
 from app.domain.investigation.service import InvestigationService
 from app.domain.runner.schemas import RunnerEvent
@@ -142,11 +142,7 @@ async def stream_investigation_events(
 
             # Check if investigation has completed or failed
             detail = await service.get_by_id(investigation_id)
-            if detail.status in {
-                InvestigationStatus.COMPLETED,
-                InvestigationStatus.FAILED,
-                InvestigationStatus.CANCELLED,
-            }:
+            if detail.status in TERMINAL_STATUSES:
                 # Flush any remaining events
                 trailing = await service.get_events_stream(
                     investigation_id,

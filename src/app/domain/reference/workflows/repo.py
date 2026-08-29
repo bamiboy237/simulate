@@ -18,13 +18,11 @@ class InMemoryReferenceRepository:
     def __init__(self) -> None:
         self._state: State | None = None
         self._mutations: list[dict[str, object]] = []
-        self._destroyed = False
 
     def seed(self, state: object) -> None:
         """This method loads one approved state as the starting point."""
         self._state = copy.deepcopy(state)
         self._mutations = []
-        self._destroyed = False
 
     def snapshot(self) -> object:
         """This method returns the current state as a JSON-safe structure."""
@@ -66,16 +64,10 @@ class InMemoryReferenceRepository:
         """This method returns the recorded mutation trail."""
         return tuple(self._mutations)
 
-    def reset(self) -> None:
-        """This method restores the approved starting state."""
-        if self._state is not None:
-            self.seed(self._state)
-
     def destroy(self) -> None:
         """This method discards the disposable state and closes the environment."""
         self._state = None
         self._mutations = []
-        self._destroyed = True
 
 
 def update_state(state: object, **updates: object) -> object:

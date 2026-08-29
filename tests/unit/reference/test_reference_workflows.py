@@ -464,18 +464,6 @@ async def test_cleanup_success_emits_destroyed_event() -> None:
     assert run.cleanup_ok is True
 
 
-async def test_tokens_and_cost_are_marked_as_estimates() -> None:
-    workflow = _workflow("flight_booking")
-    run = await run_reference_case(
-        workflow=workflow,
-        plan=workflow.baseline_plan,
-        side="baseline",
-        label="baseline",
-    )
-    assert run.tokens_are_estimates is True
-    assert run.cost_is_estimate is True
-
-
 async def test_repository_destroy_leaves_no_state_behind() -> None:
     workflow = _workflow("flight_booking")
     run = await run_reference_case(

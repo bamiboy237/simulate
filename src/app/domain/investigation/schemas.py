@@ -11,7 +11,6 @@ from app.domain.runner.schemas import (
     AgentArtifactRef,
     EnvironmentSliceRef,
     ResourceLimits,
-    RunnerEvent,
 )
 
 
@@ -24,15 +23,6 @@ class InvestigationStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
-
-    # Lowercase aliases
-    pending = "pending"
-    provisioning = "provisioning"
-    running = "running"
-    completed = "completed"
-    failed = "failed"
-    cancelled = "cancelled"
-
 
 TERMINAL_STATUSES: frozenset[InvestigationStatus] = frozenset(
     {
@@ -72,16 +62,6 @@ class InvestigationResponse(BaseModel):
     started_at: datetime | None = None
     finished_at: datetime | None = None
     error: str | None = None
-
-
-class InvestigationSummaryCreate(BaseModel):
-    """Final findings submitted by the investigator."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    findings: str
-    next_step: str
-    evidence_refs: list[str | dict[str, Any]] = Field(default_factory=list)
 
 
 class InvestigationSummaryResponse(BaseModel):
@@ -147,11 +127,3 @@ class InboxMessagesResponse(BaseModel):
 
     messages: list[ChatMessageResponse]
     next_cursor: int
-
-
-class EventBatchPayload(BaseModel):
-    """Batch of runner events posted by the bridge."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    events: list[RunnerEvent]

@@ -1,19 +1,20 @@
 # src/app/domain/reference/
 
-<!-- Fixer: Fill in this section with architectural understanding -->
-
 ## Responsibility
 
-<!-- What is this folder's job in the system? -->
+Runs bounded reference workflows and compares baseline and candidate evidence.
 
 ## Design
 
-<!-- Key patterns, abstractions, architectural decisions -->
+- `contracts.py` defines workflow, tool, repository, plan, and expectation contracts.
+- `runner.py` seeds one disposable repository, executes the plan, derives the result from observed
+  state and mutations, and always destroys the repository.
+- `compare.py` and `report.py` produce deterministic comparisons and integration reports.
 
 ## Flow
 
-<!-- How does data/control flow through this module? -->
+`ReferenceWorkflow` -> `run_reference_case()` -> observed state and mutations -> comparison.
 
 ## Integration
 
-<!-- How does it connect to other parts of the system? -->
+Uses simulation events and fault scripts. The CLI and user simulator consume the workflow registry.

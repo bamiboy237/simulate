@@ -1,10 +1,11 @@
 # src/app/domain/agent/
 
 ## Responsibility
-Encapsulates the AI support agent business logic, prompt templates, tool binding, and policy adherence checks.
+Encapsulates support-agent routing, tool guards, policy evidence, refund confirmation, and escalation.
 
 ## Key Files
-- `service.py`: `SupportAgentService` orchestrating agent prompt preparation, tool execution, and response synthesis.
+- `service.py`: `SupportAgentService` runs ownership-checked tools and keeps the latest order,
+  policy, and escalation context for response assembly.
 - `errors.py`: Domain exception hierarchy for agent failures.
 
 ## Integration

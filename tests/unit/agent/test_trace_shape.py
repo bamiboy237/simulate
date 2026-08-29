@@ -155,7 +155,6 @@ def test_disabled_recorder_performs_no_telemetry_work() -> None:
     with recorder.span("support_agent.turn") as span:
         span.set_attribute("support.intent", "order_status")
         span.set_error("order_not_found")
-        span.end()
 
     # No tracer exists, so nothing can have been exported or recorded.
     assert recorder.current_trace_id() is None

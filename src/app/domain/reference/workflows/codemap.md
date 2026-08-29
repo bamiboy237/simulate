@@ -1,19 +1,20 @@
 # src/app/domain/reference/workflows/
 
-<!-- Fixer: Fill in this section with architectural understanding -->
-
 ## Responsibility
 
-<!-- What is this folder's job in the system? -->
+Builds the seven reference workflows used by the deterministic reference harness.
 
 ## Design
 
-<!-- Key patterns, abstractions, architectural decisions -->
+- `repo.py` provides disposable in-memory state. `seed()` deep-copies approved state, and
+  `destroy()` discards state and mutations.
+- `six_reference.py` builds incident response, CI triage, claims denial, returns resolution,
+  onboarding, and disputes. `flight_booking.py` builds flight booking.
 
 ## Flow
 
-<!-- How does data/control flow through this module? -->
+Fixture state -> workflow builder -> `ALL_WORKFLOWS` -> reference runner.
 
 ## Integration
 
-<!-- How does it connect to other parts of the system? -->
+Uses fixture data from `app.domain.reference_workflows` and contracts from `app.domain.reference`.

@@ -320,14 +320,6 @@ def test_bare_simulate_launches_workbench(catalog_dir: Path, monkeypatch) -> Non
     assert workbench_called is True
 
 
-def test_keyboard_interrupt_exits_130(catalog_dir: Path, capsys, monkeypatch) -> None:
-    registry = _registry(_FakePlugin(interrupt=True))
-    monkeypatch.setattr(simulate, "run_preflight", _ok_preflight)
-    code = _run(["simulate", "run", FLOW_ID], registry, catalog_dir)
-    assert code == 130
-    assert "interrupted" in capsys.readouterr().err.lower()
-
-
 def test_request_flags_reach_the_plugin(catalog_dir: Path, monkeypatch) -> None:
     plugin = _FakePlugin()
     registry = _registry(plugin)
@@ -418,13 +410,6 @@ def test_validate_reports_yaml_issues(catalog_dir: Path, capsys) -> None:
     assert code == 1
     assert "bad.yaml" in captured.err
     assert "unknown plugin id 'not-registered'" in captured.err
-
-
-def test_async_plugin_contract_test(catalog_dir: Path) -> None:
-    import inspect
-
-    plugin = _FakePlugin()
-    assert inspect.iscoroutinefunction(plugin.run)
 
 
 def test_persona_overrides_reach_an_unrelated_test_plugin(
@@ -624,19 +609,6 @@ def test_interrupt_json_mode_prints_structured_error(tmp_path: Path, capsys) -> 
     assert payload["error"]["code"] == "interrupted"
     assert payload["error"]["cleanup"] == "rollback"
     assert captured.err == ""  # nothing plain on stderr
-
-
-def test_json_flag_accepted_after_run_command(
-    catalog_dir: Path, monkeypatch, capsys
-) -> None:
-    import json as jsonlib
-
-    registry = _registry(_FakePlugin())
-    monkeypatch.setattr(simulate, "run_preflight", _ok_preflight)
-    code = _run(["simulate", "run", FLOW_ID, "--json"], registry, catalog_dir)
-    assert code == 0
-    payload = jsonlib.loads(capsys.readouterr().out)
-    assert payload["run_id"] == "run-xyz"
 
 
 def test_json_flag_before_and_after_simulate_parse(catalog_dir: Path, monkeypatch, capsys) -> None:

@@ -165,7 +165,6 @@ async def test_support_run_streams_events_in_order_and_rolls_back(
 
     # the disposable transaction was rolled back: the real DB is unchanged
     assert await _snapshot() == before
-    assert result.report.run_id == result.report.run_id
 
 
 @pytest.mark.integration

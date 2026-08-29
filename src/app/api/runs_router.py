@@ -83,12 +83,21 @@ async def start_run(
     )
 
 
-@runs_router.get("/{execution_id}", response_model=ExecutionStatus)
-async def run_status(
+@runs_router.get(
+    "/{execution_id}",
+    response_model=ExecutionStatus,
+    operation_id="run_status_runs__execution_id__get",
+)
+@comparisons_router.get(
+    "/{execution_id}",
+    response_model=ExecutionStatus,
+    operation_id="comparison_status_comparisons__execution_id__get",
+)
+async def execution_status(
     execution_id: UUID,
     execution: Annotated[ExecutionService, Depends(get_execution_service)],
 ) -> ExecutionStatus:
-    """This method returns one run's status and its result when completed."""
+    """This method returns one execution's status and its result when completed."""
     handle = execution.require(execution_id)
     return ExecutionStatus(
         execution_id=execution_id,
@@ -145,20 +154,4 @@ async def start_comparison(
         execution_id=handle.execution_id,
         kind="comparison",
         status=handle.status,
-    )
-
-
-@comparisons_router.get("/{execution_id}", response_model=ExecutionStatus)
-async def comparison_status(
-    execution_id: UUID,
-    execution: Annotated[ExecutionService, Depends(get_execution_service)],
-) -> ExecutionStatus:
-    """This method returns one comparison's status and result when completed."""
-    handle = execution.require(execution_id)
-    return ExecutionStatus(
-        execution_id=execution_id,
-        status=handle.status,  # type: ignore[arg-type]
-        result=handle.result,  # type: ignore[arg-type]
-        error_code=handle.error_code,
-        error_message=handle.error_message,
     )

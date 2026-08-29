@@ -225,7 +225,6 @@ class SandboxBridge:
         self.cursor = 0
         self.is_run_active = False
         self.event_buffer: list[RunnerEvent] = []
-        self.running = True
         self.backoff_s = 1.0
         self.crash_count = 0
         self.summary_submitted = False
@@ -767,7 +766,7 @@ class SandboxBridge:
             await self.flush_events(client, force_all=True)
 
             # 3. Supervise Prime Agent with the retry policy.
-            while self.running and self.crash_count <= self.max_retries:
+            while self.crash_count <= self.max_retries:
                 self.agent_end_received = False
                 self.is_run_active = False
                 self.protocol_failure = False

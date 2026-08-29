@@ -113,18 +113,6 @@ def policy_plan(policy_slug: str = "refund-and-delivery") -> ScriptedPlan:
     )
 
 
-def policy_without_tool_plan() -> ScriptedPlan:
-    """This function plans an ungrounded policy answer without any tool call."""
-    return ScriptedPlan(
-        routing={"intent": "policy", "confidence": 0.9, "policy_slug": "refund-and-delivery"},
-        tool_calls=(),
-        answer={
-            "intent": "policy",
-            "message": "The policy allows refunds for any order at any time.",
-        },
-    )
-
-
 def refund_plan(
     order_id: UUID,
     *,

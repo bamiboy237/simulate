@@ -20,8 +20,8 @@ from app.db import get_session_factory
 from app.domain.investigation.brief import render_task_brief
 from app.domain.investigation.repository import SqlAlchemyInvestigationRepository
 from app.domain.investigation.schemas import (
+    TERMINAL_STATUSES,
     InvestigationCreateRequest,
-    InvestigationStatus,
 )
 from app.domain.investigation.service import InvestigationService
 from app.domain.runner.schemas import (
@@ -127,11 +127,7 @@ async def _stream_events(
                 print(f"[{event.seq:03d}] {event_type.upper():<20} {json.dumps(event.payload)}")
 
         detail = await service.get_by_id(investigation_id)
-        if detail.status in {
-            InvestigationStatus.COMPLETED,
-            InvestigationStatus.FAILED,
-            InvestigationStatus.CANCELLED,
-        }:
+        if detail.status in TERMINAL_STATUSES:
             if not json_output:
                 print(f"--- Investigation reached terminal status: {detail.status.value} ---")
                 if detail.summary:

@@ -303,8 +303,6 @@ class JsonlPersistentSink:
         self.path = root / f"{run_id}.jsonl"
 
     def emit(self, event: SimulationEvent) -> None:
-        if not isinstance(event, SimulationEvent):
-            return
         self._root.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as stream:
             stream.write(event.persistent.to_json() + "\n")

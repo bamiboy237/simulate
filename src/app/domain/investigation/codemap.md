@@ -1,47 +1,92 @@
 # src/app/domain/investigation/
 
 ## Responsibility
-Investigation Domain & Control Plane Service. Manages the lifecycle state machine, task brief assembly, cloud runner provisioning, token authentication, event collection, chat message inbox, findings persistence, stale run detection, and automated sandbox termination for agent investigations.
 
-## Design Patterns
-- **Finite State Machine (FSM):** `InvestigationService` enforces strict status transitions (`pending` -> `provisioning` -> `running` -> `completed` / `failed` / `cancelled`) with immutable terminal states preventing post-completion modifications.
-- **Dynamic Runner Resolution & Strategy Pattern:** `InvestigationService._resolve_runner()` dynamically initializes `ModalRunner` when `MODAL_ENABLED=true` or falls back to `FakeRunner` for offline environments, allowing dependency injection for tests.
-- **Resource Lifecycle Management / Finalizer Pattern:** On transitioning to terminal states (`completed`, `failed`, `cancelled`), `InvestigationService` automatically terminates active sandbox compute handles via `CloudRunner.terminate(handle)`.
-- **Repository Pattern:** `InvestigationRepository` protocol and `SqlAlchemyInvestigationRepository` encapsulate all database queries, leveraging PostgreSQL `on_conflict_do_nothing` for idempotent event recording.
-- **Domain Service Pattern:** `InvestigationService` coordinates business logic across state verification, task brief rendering, bearer token SHA-256 hashing, sandbox provisioning, event ingestion, and background sweeping.
-- **Token Guard / Authentication:** SHA-256 hashed bridge tokens authenticate sandbox incoming event batches and inbox polling without exposing raw tokens in database tables.
-- **Cloud Safety Gate:** When Modal is enabled, `start()` rejects reserved caller-supplied environment and secret keys, requires a public (non-loopback) `CONTROL_PLANE_PUBLIC_URL`, and requires `MODAL_OUTBOUND_DOMAIN_ALLOWLIST` to include both the control-plane host and the model-provider host.
+Implements the control-plane domain for one agent investigation. It validates launch inputs,
+renders the task brief, persists lifecycle state and ordered events, authenticates the sandbox
+bridge, stores chat and the final summary, exposes replay data, detects stale runs, and asks the
+selected runner to create or terminate compute.
+
+## Design
+
+- **Domain service / finite-state machine:** `InvestigationService` allows
+  `pending -> provisioning|failed|cancelled`, `provisioning -> running|failed|cancelled`, and
+  `running -> completed|failed|cancelled`. Terminal records are immutable.
+- **Repository pattern:** `InvestigationRepository` defines async persistence.
+  `SqlAlchemyInvestigationRepository` uses PostgreSQL `ON CONFLICT DO NOTHING` for idempotent
+  `(investigation_id, seq)` event insertion.
+- **Runner strategy:** the service accepts an injected `CloudRunner`; otherwise it resolves
+  `ModalRunner` when enabled and `FakeRunner` offline.
+- **Credential guard:** each run gets a random bridge token. Only its SHA-256 digest is stored.
+- **Cloud launch gate:** Modal requires a public HTTP(S) control-plane URL and a bare-domain
+  allowlist containing the control-plane and model-provider hosts.
+- **Persistence-first stream:** the public Server-Sent Events route replays stored sequence rows;
+  there is no separate in-memory event bus.
+- **Canonical status contract:** `InvestigationStatus` exposes uppercase enum members, and
+  `TERMINAL_STATUSES` is shared by the service, API stream, and CLI stream.
+- **Resource finalizer:** terminal transitions terminate a sandbox only when its handle exists in
+  the current service instance's `_handles` map.
 
 ## Key Files
-- `service.py`: `InvestigationService` managing FSM transitions, runner resolution, Modal control-plane and outbound-allowlist validation, sandbox provisioning, event processing, chat, stale sweeping, and sandbox termination.
-- `brief.py`: `render_task_brief()` assembling structured markdown task briefs (incident overview, environment slice, failure summary, rules, evaluator expectations, and mandatory `summary.submit` final action protocol).
-- `repository.py`: `InvestigationRepository` protocol and `SqlAlchemyInvestigationRepository` persistence operations.
-- `models.py`: SQLAlchemy ORM entities (`InvestigationRecord`, `InvestigationEventRecord`, `InvestigationMessageRecord`, `InvestigationSummaryRecord`).
-- `schemas.py`: Pydantic validation models for request/response payloads and status enums (`InvestigationStatus`, `InvestigationCreateRequest`, `InvestigationDetailResponse`, `InvestigationSummaryResponse`).
-- `errors.py`: Domain exception hierarchy (`InvestigationNotFoundError`, `InvalidStateTransitionError`, `TerminalStateImmutableError`, `InvalidBridgeTokenError`).
 
-## Data & Control Flow
-1. **Investigation Launch:**
-   - `InvestigationService.start()` generates a cryptographically secure URL-safe bridge token, computes its SHA-256 hash, and inserts a new `InvestigationRecord` in `pending` status.
-   - Compiles structured task brief via `render_task_brief()` (if not provided).
-   - Resolves runner (`ModalRunner` or `FakeRunner`). When Modal is enabled, validates the public control-plane URL and the outbound domain allowlist, then provisions the container sandbox via `runner.create_sandbox(SandboxSpec(...))`, placing the bridge token in the Modal secret set, and stores the handle in `_handles`.
-   - On sandbox creation failure, immediately marks the investigation as `failed`.
-2. **State Transitions & Sandbox Reclamation:**
-   - As sandbox provisioning proceeds, `transition_status()` moves state from `pending` -> `provisioning` -> `running`, stamping `started_at`.
-   - When entering terminal states (`completed`, `failed`, `cancelled`), `transition_status()` stamps `finished_at` and terminates the allocated sandbox handle via `runner.terminate(handle)`.
-3. **Event Ingestion:**
-   - Sandbox bridge posts event batches via `record_events(token, events)`. The service verifies token authenticity and executes idempotent bulk inserts.
-   - Automatically promotes `pending`/`provisioning` to `running` on first event receipt.
-   - Updates heartbeat timestamps on `EventType.heartbeat`.
-   - Transitions state to `completed` on `EventType.summary_submitted` (saving `InvestigationSummaryRecord`) or `failed` on `EventType.error`. Closing `investigation_finished` events are folded into the completion transition.
-4. **Interactive Steering:**
-   - Users submit messages via `record_user_message()` (`prompt` or `steer` mode).
-   - The sandbox bridge retrieves unread messages via `poll_inbox(token, cursor=...)`.
-5. **SSE Streaming & Replay:**
-   - `GET /investigations/{id}/events` streams persisted events over Server-Sent Events. The API replays everything newer than the client's `Last-Event-ID` from PostgreSQL, then tails new arrivals; persistence precedes streaming, so reconnects are complete and ordered.
-6. **Staleness Sweep:**
-   - Periodic background sweeper calls `sweep_stale(silence_seconds=90)` to transition silent running investigations to `failed`.
+- `service.py`: launch validation, state transitions, event interpretation, token checks, chat,
+  stale sweep, and handle termination.
+- `repository.py`: persistence protocol and SQLAlchemy implementation.
+- `models.py`: ORM records for investigations, events, messages, and one summary.
+- `schemas.py`: request, response, event, chat, summary, and lifecycle contracts.
+- `brief.py`: Markdown brief with mandatory final `summary.submit`.
+- `errors.py`: typed 401, 404, and 409 domain errors.
+
+## Data and Control Flow
+
+### Launch and Provisioning
+
+1. The API or CLI builds `InvestigationCreateRequest` and calls `start()` manually.
+2. The service rejects reserved keys, resolves Modal network policy and model credentials, resolves
+   the outer timeout, renders a brief when absent, and validates the complete `SandboxSpec`.
+3. It creates a `pending` database row, then launches the runner in a worker thread. A successful
+   handle enters `_handles`; a launch exception changes the row to `failed`.
+4. The first accepted bridge batch advances `pending` through `provisioning` to `running`, or
+   advances `provisioning` to `running`, and stamps `started_at`.
+
+### Events and Completion
+
+1. The sandbox posts `list[RunnerEvent]` directly to `/internal/events` with its bridge token.
+2. The service authenticates the token, then stores new sequence numbers and ignores duplicates.
+3. Heartbeats update `last_heartbeat_at`. `summary_submitted` creates the one-to-one summary but
+   does not finish the run by itself.
+4. `investigation_finished` completes only when a summary already exists or is in the same batch.
+   An end without a summary fails the run. An `error` event also fails it.
+5. A completed row accepts only trailing `investigation_finished` and `error` events. Other
+   terminal writes are ignored.
+6. A terminal transition stamps `finished_at` and terminates the known in-memory handle.
+
+### Chat, Replay, and Stale Runs
+
+1. The public message endpoint or CLI stores user messages for non-terminal investigations.
+2. The bridge polls `/internal/inbox?cursor=<message-id>` and receives later messages in ID order.
+3. The SSE route and CLI read events after a sequence cursor. SSE emits keepalives, replays missed
+   rows, flushes trailing rows after terminal state, and closes.
+4. FastAPI startup runs `sweep_stale()`, which fails `running` rows older than the heartbeat or
+   start-time cutoff.
+
+## Persistence Model and Migration
+
+`alembic/versions/d8f4e2a1b9c7_add_investigation_tables.py` creates:
+
+- `investigations`: lifecycle, references, token hash, error, heartbeat, and timestamps.
+- `investigation_events`: rows unique by investigation and sequence, with an ordered index.
+- `investigation_messages`: chat rows indexed by investigation and message ID.
+- `investigation_summaries`: one summary per investigation through a unique foreign key.
+
+All child tables use `ON DELETE CASCADE`. Downgrade removes children before the parent. The
+executable revision points to `9f7c2a1d5e4b` through `down_revision`.
 
 ## Integration
-- **Consumed by:** `app.api.investigations_router` (REST API routes for UI / external clients), `app.cli.investigate` (`lab investigate` subcommands), `scripts.investigate_smoke` (live E2E verification), background worker tasks / sweeper crons.
-- **Depends on:** `app.domain.investigation.models`, `app.domain.investigation.repository`, `app.domain.investigation.brief`, `app.domain.runner` (`CloudRunner`, `ModalRunner`, `SandboxSpec`, `SandboxHandle`, `EventType`), `tests.fakes.runners` (`FakeRunner`), `app.config`, `app.db.Base`, SQLAlchemy `AsyncSession`.
+
+- **HTTP:** `app.api.investigations_router` exposes public and bridge routes.
+- **Injection:** `app.api.dependencies.get_investigation_service()`.
+- **CLI:** `app.cli.investigate`.
+- **Startup:** `app.main.lifespan()` runs the stale sweep.
+- **Execution:** `app.domain.runner`.
+- **Database:** `app.db.Base`, SQLAlchemy, and the investigation migration.

@@ -170,14 +170,6 @@ def test_display_memory_keeps_chat_in_memory_and_never_serializes() -> None:
         memory.chat[0].to_json()
 
 
-def test_unsupported_event_types_are_ignored_by_persistent_sink(
-    tmp_path: Path,
-) -> None:
-    sink = JsonlPersistentSink("ignore", "case", tmp_path)
-    sink.emit(object())  # type: ignore[arg-type]
-    assert not (tmp_path / "ignore.jsonl").exists()
-
-
 def test_display_event_repr_redacts_chat_text() -> None:
     from datetime import UTC, datetime
 

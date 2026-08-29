@@ -1,12 +1,13 @@
 # src/app/domain/execution/
 
 ## Responsibility
-Orchestrates end-to-end replay, simulation execution, and state verification.
+Starts background case runs and suite comparisons, tracks their results, and streams run events.
 
 ## Key Files
-- `service.py`: `ExecutionService` coordinating sandbox creation, state seeding, agent execution, and evidence collection.
-- `replay.py`: Deterministic replay engine executing recorded bundles against sandbox targets.
+- `service.py`: `ExecutionService` creates and tracks background tasks. `ExecutionHandle.task`
+  supplies completion state, including the `task.done()` condition that ends event streams.
+- `errors.py`: Safe lookup errors for unknown execution IDs.
 
 ## Integration
-- **Consumed by:** `app.api.runs`, CLI runners.
-- **Depends on:** `app.domain.simulation`, `app.domain.agent`, `app.domain.bundle`.
+- **Consumed by:** `app.api.runs_router`.
+- **Depends on:** `app.domain.simulation`, `app.domain.suite`, and `app.domain.regression`.

@@ -8,7 +8,7 @@ instead of escaping the event loop.
 
 import asyncio
 from collections.abc import AsyncIterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from app.adapters.pydantic_ai_agent import ModelConfig
@@ -41,11 +41,6 @@ class ExecutionHandle:
     result: object | None = None
     error_code: str | None = None
     error_message: str | None = None
-    _finished: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
-
-    def wait_done(self) -> None:
-        """This method marks the execution as finished."""
-        self._finished.set()
 
 
 class ExecutionService:
@@ -173,7 +168,6 @@ class ExecutionService:
             return
         handle.status = EXECUTION_STATUS_COMPLETED
         handle.result = result
-        handle.wait_done()
 
     def _fail(self, execution_id: UUID, code: str, message: str) -> None:
         handle = self._handles.get(execution_id)
@@ -182,7 +176,6 @@ class ExecutionService:
         handle.status = EXECUTION_STATUS_FAILED
         handle.error_code = code
         handle.error_message = message
-        handle.wait_done()
 
     async def events(self, execution_id: UUID) -> AsyncIterator[SimulationEvent]:
         """This method streams one execution's live events and stops cleanly.

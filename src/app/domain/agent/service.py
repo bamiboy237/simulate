@@ -104,7 +104,6 @@ class SupportAgentService:
         self.last_tool_error: ReasonCode | None = None
         self.last_order: OrderRead | None = None
         self.last_policy: PolicyDocumentRead | None = None
-        self.last_ticket: TicketRead | None = None
         self.last_escalation: Escalation | None = None
         self.last_policy_hits: list[RetrievalHit] = []
         self._request_message = ""
@@ -195,11 +194,11 @@ class SupportAgentService:
         If the order cannot receive a refund, the service raises an error.
         If both checks pass, the service creates the proposal.
         The service creates no proposal after either error.
-        The proposal stores ``reason``.
+        The public tool keeps ``reason`` in its contract for the model.
         The trace never stores ``reason``.
         """
         try:
-            return await self._propose_refund(order_id, reason)
+            return await self._propose_refund(order_id)
         except Forbidden:
             self.last_tool_error = ReasonCode.REFUND_BLOCKED_FORBIDDEN
             raise
@@ -210,7 +209,7 @@ class SupportAgentService:
             self.last_tool_error = ReasonCode.REFUND_BLOCKED_INELIGIBLE
             raise
 
-    async def _propose_refund(self, order_id: UUID, reason: str) -> RefundProposal:
+    async def _propose_refund(self, order_id: UUID) -> RefundProposal:
         order = await self.get_order_status(order_id)
         if order.status not in REFUNDABLE_ORDER_STATUSES:
             with self._recorder.span("support_agent.policy.check") as span:
@@ -269,7 +268,6 @@ class SupportAgentService:
             )
             span.set_attribute("escalation.ticket.id", str(ticket.id))
             span.set_attribute("escalation.reason.code", ReasonCode.ESCALATED.value)
-            self.last_ticket = ticket
             self.last_escalation = Escalation(
                 ticket_id=ticket.id,
                 reason_code=ReasonCode.ESCALATED,

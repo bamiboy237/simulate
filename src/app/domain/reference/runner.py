@@ -220,7 +220,6 @@ async def run_reference_case(
     started = perf_counter()
     repository = workflow.repository
     repository.seed(workflow.seed_state)
-    repository.reset()
     collector.emit(SimulationEventKind.ENVIRONMENT_CREATED, {"environment.id": uuid4().hex[:16]})
     collector.emit(SimulationEventKind.ENVIRONMENT_SEEDED, {"seed.orders": 0})
 
