@@ -11,6 +11,7 @@ from app.db import get_session, get_session_factory
 from app.domain.agent.errors import ModelNotConfigured
 from app.domain.execution.errors import SandboxUnavailableError
 from app.domain.execution.service import ExecutionService
+from app.domain.experiment.operator import SupportExperimentOperator
 from app.domain.failures.repository import SqlAlchemyFailureReviewRepository
 from app.domain.failures.service import FailureReviewService
 from app.domain.investigation.repository import SqlAlchemyInvestigationRepository
@@ -102,4 +103,14 @@ def get_investigation_service(
     return InvestigationService(
         SqlAlchemyInvestigationRepository(session),
         control_plane_url=settings.control_plane_public_url,
+    )
+
+
+def get_support_experiment_operator(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SupportExperimentOperator:
+    """Compose the operator with a session factory, never a request-held session."""
+    return SupportExperimentOperator(
+        session_factory=get_session_factory(),
+        settings=settings,
     )

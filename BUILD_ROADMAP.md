@@ -306,6 +306,33 @@ SIMULATE_LIVE_E2E=1 MODAL_ENABLED=true uv run python scripts/investigate_smoke.p
 
 Final repair evidence on 2026-08-27: Ruff clean; strict mypy clean across 172 source files; 775 unit tests passed (including deterministic watchdog bridge-seam regressions for abort-order lifecycle, the 300s watchdog budget, and terminal-event persistence). Live investigation `5d1c240d-a4ca-4faa-b213-cef4a696113f` completed against a restarted control plane with sandbox exit code 0, exactly one persisted summary, and exactly one persisted `investigation_finished` event. The full suite reported 804 passed, 21 skipped, and 2 failed; both failures are the known isolated-PostgreSQL CLI issue that reproduces at base commit `22e5044`. The current World Gateway still lacks compiled trace, state, and evidence data; this run verifies the investigation pipeline, not a real-world refund diagnosis.
 
+### Support-only experiment slice [LOCAL, NOT PHASE 8 COMPLETE]
+
+The local support slice retains the v1 single-case path and adds a v2 path for one exact saved
+suite. A v2 suite must have at least three distinct approved support cases. The operator loads the
+exact suite version through `SuiteService`, verifies its persisted membership hash, compiles every
+exact case into a scenario reference, and stores that snapshot in the contract. At start, it
+re-resolves the exact suite and cases before admission; a changed or unapproved member is rejected.
+With the minimum three repetitions, the deterministic suite plan contains at least 18
+baseline/candidate iterations. The current single-operator safety lock and separately configured
+disposable PostgreSQL sandbox remain in effect. The runner saves ordered events, each completed
+iteration, and a hash-checked neutral result through short committed control-plane transactions.
+API access requires one configured operator token. CLI and API starts run synchronously in the
+caller process; they do not detach, survive a restart, or resume compute after a restart. A later
+start marks abandoned runs failed before admitting new work, without repeating model calls.
+
+This path runs only the installed support workflow. It does not execute customer OCI or Git
+artifacts, verify a provider-side model revision, preempt token/cost/tool/retry spending, compile
+an arbitrary business world, or support multiple candidates, BYOVM, and Textual experiments.
+Prompt bodies stay local and persisted model responses are scrubbed. Phase 8.0–8.8 acceptance
+remains open.
+
+**Prior v1 local evidence:** `uv run pytest tests/unit -q` passed 806 tests with a dummy test
+database URL. `uv run pytest tests/integration/experiment -q` passed five tests against separate
+disposable control-plane and sandbox PostgreSQL containers after `uv run alembic upgrade head`.
+Ruff and strict mypy passed. The integration run used a scripted model, not a live provider. This
+record does not verify a live model-provider call, restart-surviving compute, or the v2 suite path.
+
 ## Phase 8.0 — World discovery, model, and compiler
 
 - Add one versioned, domain-neutral business world model for actors, state, capabilities, rules, policies, success conditions, scenario templates, evaluators, and technical bindings.

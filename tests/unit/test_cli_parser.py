@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.cli.experiment import ExperimentCliError, _prompt_runtime
 from app.cli.main import build_parser
 
 
@@ -40,3 +41,47 @@ def test_simulate_defaults_and_programmatic_flags() -> None:
     assert explicit_run.simulation_id == "phase2-03-database-timeout"
     assert explicit_run.max_turns == 5
     assert explicit_run.yes is True
+
+
+def test_experiment_parser_accepts_create_and_synchronous_start() -> None:
+    parser = build_parser()
+    case_id = "e693cb4c-98a7-5d3d-bd7a-1c0c554ab528"
+
+    create = parser.parse_args(
+        [
+            "experiment",
+            "create",
+            "--case",
+            f"{case_id}@1",
+            "--candidate-change",
+            "model",
+            "--baseline-prompt-file",
+            "baseline.txt",
+            "--seed",
+            "7",
+        ]
+    )
+    assert create.experiment_command == "create"
+    assert create.repetitions == 3
+
+    start = parser.parse_args(
+        [
+            "experiment",
+            "start",
+            case_id,
+            "--baseline-prompt-file",
+            "baseline.txt",
+        ]
+    )
+    assert start.experiment_command == "start"
+    assert str(start.experiment_id) == case_id
+
+
+def test_experiment_cli_rejects_an_empty_prompt_file(tmp_path) -> None:
+    prompt_file = tmp_path / "empty-prompt.txt"
+    prompt_file.write_text("  \n", encoding="utf-8")
+
+    with pytest.raises(ExperimentCliError) as raised:
+        _prompt_runtime(prompt_file, "support-answer", "1.0.0")
+
+    assert raised.value.code == "experiment_prompt_invalid"

@@ -22,6 +22,13 @@ class Settings(BaseSettings):
 
     database_url: PostgresDsn
     database_url_unpooled: PostgresDsn | None = None
+    experiment_sandbox_database_url: PostgresDsn | None = None
+    experiment_sandbox_disposable: bool = False
+    experiment_operator_token: SecretStr | None = None
+    experiment_max_repetitions: int = Field(default=10, ge=3, le=100)
+    experiment_max_iteration_duration_s: int = Field(default=300, ge=1, le=3600)
+    experiment_max_total_duration_s: int = Field(default=3600, ge=1, le=21_600)
+    experiment_max_concurrency: int = Field(default=1, ge=1, le=10)
     environment: Literal["local", "test", "production"] = "local"
     langsmith_tracing: bool = False
     langsmith_api_key: SecretStr | None = None
@@ -74,7 +81,12 @@ class Settings(BaseSettings):
             return [str(item).strip() for item in v if str(item).strip()]
         return []
 
-    @field_validator("database_url", "database_url_unpooled", mode="before")
+    @field_validator(
+        "database_url",
+        "database_url_unpooled",
+        "experiment_sandbox_database_url",
+        mode="before",
+    )
     @classmethod
     def use_asyncpg_driver(cls, database_url: object) -> object:
         if not isinstance(database_url, str):
@@ -92,7 +104,11 @@ class Settings(BaseSettings):
 
         return urlunsplit(parsed_url._replace(query=urlencode(query)))
 
-    @field_serializer("database_url", "database_url_unpooled")
+    @field_serializer(
+        "database_url",
+        "database_url_unpooled",
+        "experiment_sandbox_database_url",
+    )
     def serialize_database_url(self, database_url: PostgresDsn | None) -> str | None:
         """This method removes database credentials from serialized settings and logs."""
         if database_url is None:

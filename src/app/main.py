@@ -11,6 +11,7 @@ from starlette.responses import Response
 
 from app.api.agent_router import router as agent_router
 from app.api.cases_router import router as cases_router
+from app.api.experiments_router import router as experiments_router
 from app.api.failures_router import router as failures_router
 from app.api.health_router import router as health_router
 from app.api.investigations_router import internal_router
@@ -88,6 +89,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(workflow_router)
     app.include_router(agent_router)
     app.include_router(cases_router)
+    app.include_router(experiments_router)
     app.include_router(suites_router)
     app.include_router(runs_router)
     app.include_router(comparisons_router)

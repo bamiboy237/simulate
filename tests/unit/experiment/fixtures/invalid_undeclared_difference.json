@@ -1,0 +1,11 @@
+{
+  "candidate_change": "model",
+  "candidate": {
+    "artifact": {
+      "artifact_id": "support-agent",
+      "kind": "oci_image",
+      "reference": "ghcr.io/simulate/support-agent@sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "content_hash": "8888888888888888888888888888888888888888888888888888888888888888"
+    }
+  }
+}

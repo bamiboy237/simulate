@@ -1,0 +1,6 @@
+{
+  "artifact_id": "support-agent",
+  "kind": "oci_image",
+  "reference": "ghcr.io/simulate/support-agent:latest",
+  "content_hash": "6666666666666666666666666666666666666666666666666666666666666666"
+}
