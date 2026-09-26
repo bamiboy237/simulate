@@ -1,0 +1,77 @@
+{
+  "experiment_id": "2dd942a8-7672-4e2f-88b5-8f1b1a7696a8",
+  "world": {
+    "world_id": "support",
+    "version": "1.0.0",
+    "content_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "approval_status": "approved",
+    "approval_ref": "approval:support-v1"
+  },
+  "scenario": {
+    "scenario_id": "refund-confirmed",
+    "version": "1.0.0",
+    "content_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "starting_state_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "plugin": {
+    "plugin_id": "support-workflow",
+    "version": "2.0.0",
+    "content_hash": "4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "evaluators": [
+    {
+      "evaluator_id": "support-outcome",
+      "version": "1.0.0",
+      "content_hash": "5555555555555555555555555555555555555555555555555555555555555555"
+    }
+  ],
+  "baseline": {
+    "artifact": {
+      "artifact_id": "support-agent",
+      "kind": "oci_image",
+      "reference": "ghcr.io/simulate/support-agent@sha256:6666666666666666666666666666666666666666666666666666666666666666",
+      "content_hash": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "model": {
+      "provider": "openai",
+      "model_id": "gpt-5",
+      "version": "2026-01-01"
+    },
+    "prompt": {
+      "prompt_id": "support-answer",
+      "version": "1.0.0",
+      "content_hash": "7777777777777777777777777777777777777777777777777777777777777777"
+    }
+  },
+  "candidate": {
+    "artifact": {
+      "artifact_id": "support-agent",
+      "kind": "oci_image",
+      "reference": "ghcr.io/simulate/support-agent@sha256:6666666666666666666666666666666666666666666666666666666666666666",
+      "content_hash": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "model": {
+      "provider": "openai",
+      "model_id": "gpt-5.1",
+      "version": "2026-02-01"
+    },
+    "prompt": {
+      "prompt_id": "support-answer",
+      "version": "1.0.0",
+      "content_hash": "7777777777777777777777777777777777777777777777777777777777777777"
+    }
+  },
+  "candidate_change": "model",
+  "limits": {
+    "max_turns": 12,
+    "max_tool_calls": 24,
+    "max_retries": 2,
+    "max_duration_s": 300,
+    "max_tokens": 16000,
+    "max_cost_usd": "2.50"
+  },
+  "interleaving": {
+    "repetitions": 3,
+    "seed": 42
+  }
+}

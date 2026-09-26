@@ -24,11 +24,6 @@ def test_exactly_eight_scenarios_with_stable_ids() -> None:
     assert set(SCENARIO_BY_ID) == set(EXPECTED_IDS)
 
 
-def test_scenario_ids_are_unique() -> None:
-    ids = [scenario.scenario_id for scenario in SCENARIOS]
-    assert len(ids) == len(set(ids))
-
-
 def test_scenarios_cover_eight_distinct_layers() -> None:
     categories = {scenario.category for scenario in SCENARIOS}
     assert categories == set(ScenarioCategory)

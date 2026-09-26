@@ -8,6 +8,11 @@ Simulate runs customer agents inside disposable sandboxes with sanitized databas
 
 - **Phases 0 to 7 (Complete):** Core support domain, LangSmith and Braintrust trace ingestion, LangGraph stateful workflow checkpointing, isolated PostgreSQL provisioning, and the terminal user simulator.
 - **Phase 8 MVP (Complete):** Runs Prime Agent (a coding harness by Prime Intellect) inside a detached Modal cloud sandbox. Prime Agent investigates production traces, reproduces issues, streams live events, supports two-way chat during execution, and writes an immutable evidence summary. Merged to `main` in `7b3c01a` (August 23, 2026) and verified live against a real Modal sandbox on August 26, 2026 (see [Verified cloud investigation workflow](#verified-cloud-investigation-workflow)).
+- **Support experiment slice (Local):** Retains the v1 one-case comparison and adds v2
+  contracts for an exact saved suite of at least three approved support cases. With the minimum
+  three repetitions, a suite schedules at least 18 baseline/candidate iterations in a separate
+  disposable PostgreSQL database and saves a neutral result. The command runs synchronously; it
+  does not resume compute after a process restart.
 - **Phase 8 full (In progress):** The business world compiler and controlled experiment engine (roadmap sub-phases 8.0 through 8.8) remain in progress. See [`BUILD_ROADMAP.md`](file:///Users/king/Desktop/simulate/BUILD_ROADMAP.md).
 
 For the milestone plan and system architecture, see [`BUILD_ROADMAP.md`](file:///Users/king/Desktop/simulate/BUILD_ROADMAP.md) and [`ARCHITECTURE.md`](file:///Users/king/Desktop/simulate/ARCHITECTURE.md).
@@ -153,6 +158,41 @@ To send a message or steer the investigator agent during execution:
 ```bash
 uv run lab investigate send <investigation-id> "Check the payment gateway timeout." --steer
 ```
+
+### Support experiments
+
+Configure `EXPERIMENT_SANDBOX_DATABASE_URL` to point to a separate disposable PostgreSQL database, then set `EXPERIMENT_SANDBOX_DISPOSABLE=true`. Set a non-empty `EXPERIMENT_OPERATOR_TOKEN` through your environment or secret manager before starting a model run. HTTP clients provide it as a Bearer credential; `lab experiment start` reads it only from settings and has no command-line token flag. Both paths fail closed when it is missing or invalid. This is one local operator credential, not tenant or project authentication. Configure a baseline model with `MODEL_PROVIDER`, `MODEL_NAME`, and its API key. For a model change, configure `MODEL_CANDIDATE_PROVIDER`, `MODEL_CANDIDATE_NAME`, and its API key.
+
+Create a prompt comparison from an exact saved suite. The suite must contain at least three
+distinct approved support cases; with three repetitions it schedules at least 18 iterations.
+`--suite` and the retained v1 `--case` form are mutually exclusive. Prompt files stay local;
+Simulate stores their IDs and content hashes, not their text:
+
+```bash
+uv run lab experiment create --suite <suite-id>@<version> --candidate-change prompt \
+  --baseline-prompt-file baseline.txt --candidate-prompt-file candidate.txt \
+  --repetitions 3 --max-duration-s 180 --seed 17
+uv run lab experiment start <experiment-id> \
+  --baseline-prompt-file baseline.txt --candidate-prompt-file candidate.txt
+uv run lab experiment status <experiment-id>
+uv run lab experiment replay <experiment-id>
+uv run lab experiment result <experiment-id> --out result.json
+```
+
+The existing one-case command remains available as `lab experiment create --case
+<case-id>@<version> ...`. For a suite start, Simulate re-resolves the exact suite and every case
+before admitting model calls, checks the stored membership hash, compiles each approved case, and
+uses the resulting scenario plan. `start` blocks until the run ends. A single operator lock keeps
+the synchronous loop exclusive; control-plane status, event, and iteration writes commit between
+iterations. Another client can read committed status and events while it runs, but cancelling a
+running experiment is not supported. After a process crash, a later start marks the abandoned run
+failed before admitting new work. It does not resume compute or repeat paid model calls.
+
+The support runner only executes the installed, source-checked support workflow. It rejects OCI
+and Git artifacts, and it cannot enforce token, cost, tool-call, or retry ceilings before a call.
+Persisted support model responses are scrubbed. Results identify the configured provider/model and
+endpoint fingerprint, not a verified provider-side model revision. No live model-provider run or
+v2 suite execution is claimed for this local slice.
 
 ### Verified cloud investigation workflow
 

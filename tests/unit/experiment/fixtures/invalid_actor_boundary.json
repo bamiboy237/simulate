@@ -1,0 +1,21 @@
+{
+  "identity": {
+    "world_id": "support",
+    "version": "1.0.0",
+    "content_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "approval_status": "approved",
+    "approval_ref": "approval:support-v1"
+  },
+  "actors": [
+    {
+      "actor_id": "user-agent",
+      "kind": "user_agent"
+    }
+  ],
+  "tools": [
+    {
+      "tool_id": "refund-approve",
+      "owner_actor_id": "scenario-agent"
+    }
+  ]
+}

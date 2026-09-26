@@ -25,12 +25,6 @@ def _source() -> str:
     return EXTENSION_PATH.read_text(encoding="utf-8")
 
 
-def test_extension_file_exists() -> None:
-    """Verify the extension is committed at the discovery-path source location."""
-    assert EXTENSION_PATH.exists()
-    assert "Approved Tools" in _source() or "APPROVED_TOOLS" in _source()
-
-
 def test_extension_registers_all_nine_approved_tools() -> None:
     """Verify exactly nine identifier-safe aliases map to the nine gateway tools."""
     src = _source()

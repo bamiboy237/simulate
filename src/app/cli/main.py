@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import Insert, insert
 
 from app.adapters.pydantic_ai_agent import ModelConfig
 from app.adapters.sources.fixture_source import FixtureTraceSource
+from app.cli.experiment import ExperimentCliError, build_experiment_parser
 from app.cli.investigate import build_investigate_parser
 from app.cli.offline import (
     OFFLINE_CANDIDATE_MODEL_NAME,
@@ -1371,6 +1372,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     build_investigate_parser(p)
 
+    p = sub.add_parser(
+        "experiment",
+        help="support-only controlled experiment operations",
+    )
+    build_experiment_parser(p)
+
     return parser
 
 
@@ -1380,6 +1387,8 @@ def main() -> None:
     args = parser.parse_args()
     try:
         args.func(args)
+    except ExperimentCliError as error:
+        fail(error.code, error.message)
     except Exception as error:  # never leak tracebacks or secrets to users
         fail("command_failed", f"{type(error).__name__}: {error}")
     raise SystemExit(0)
